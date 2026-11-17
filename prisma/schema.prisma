@@ -1,0 +1,44 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+model Topic {
+  id           Int                @id @default(autoincrement())
+  serviceName  String             @map("service_name") @db.VarChar(64)
+  title        String             @db.VarChar(255)
+  createdAt    DateTime           @default(now()) @map("created_at")
+  participants TopicParticipant[]
+  messages     Message[]
+
+  @@index([serviceName])
+  @@map("topics")
+}
+
+model TopicParticipant {
+  topicId  Int      @map("topic_id")
+  userId   Int      @map("user_id")
+  joinedAt DateTime @default(now()) @map("joined_at")
+  topic    Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@id([topicId, userId])
+  @@index([userId])
+  @@map("topic_participants")
+}
+
+model Message {
+  id        BigInt   @id @default(autoincrement())
+  topicId   Int      @map("topic_id")
+  senderId  Int      @map("sender_id")
+  content   String   @db.Text
+  isDeleted Boolean  @default(false) @map("is_deleted")
+  createdAt DateTime @default(now()) @map("created_at")
+  topic     Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@index([topicId, createdAt(sort: Desc)])
+  @@map("messages")
+}
