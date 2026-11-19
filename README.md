@@ -169,33 +169,50 @@ La documentation OpenAPI / Swagger interactive complète est consultable sur **`
 
 ### Prérequis
 - **Node.js** >= 20.x
-- **PostgreSQL** >= 15.x
+- **Docker** & **Docker Compose** (ou une instance **PostgreSQL** >= 15.x locale)
 - **npm**
 
-### 1. Installation
+### 1. Installation des dépendances
 ```bash
 # Dépendances du micro-service backend et du widget client
 npm install
 npm --prefix client install
 ```
 
-### 2. Configuration (`.env`)
+### 2. Démarrage de la base de données (Docker)
+Un fichier `docker-compose.yml` est fourni pour lancer rapidement la base PostgreSQL dédiée. Elle est exposée sur le port **5433** de l'hôte afin d'éviter tout conflit avec une éventuelle instance PostgreSQL locale sur le port 5432 :
+
+```bash
+# Démarrer le conteneur PostgreSQL en arrière-plan
+docker compose up -d
+
+# Vérifier l'état du conteneur
+docker compose ps
+```
+
+> 💡 Pour arrêter le conteneur tout en conservant les données (volume `chat_pgdata`) : `docker compose down`.
+
+### 3. Configuration (`.env`)
 ```bash
 cp .env.example .env
 ```
 Renseignez les variables requises :
 - `PORT` : Port du serveur HTTP (ex. `3000`).
-- `DATABASE_URL` : Chaîne de connexion PostgreSQL.
+- `DATABASE_URL` : Chaîne de connexion PostgreSQL. Si vous utilisez le service Docker fourni :
+  ```env
+  DATABASE_URL="postgresql://chat_user:chat_db@localhost:5433/chat_user?schema=public"
+  ```
 - `JWT_SECRET` : Clé secrète partagée avec le service Identity pour la validation des jetons.
 - `ALLOWED_ORIGINS` : Origines autorisées pour les requêtes CORS et l'en-tête CSP `frame-ancestors`.
 
-### 3. Base de données (Prisma)
+### 4. Base de données & Migrations (Prisma)
+Une fois la base de données accessible :
 ```bash
 npx prisma migrate dev --name init
 npx prisma generate
 ```
 
-### 4. Démarrage
+### 5. Démarrage
 ```bash
 # Mode développement (Fastify avec rechargement à chaud)
 npm run dev
@@ -206,7 +223,7 @@ npm --prefix client run dev
 - API & Serveur : `http://localhost:3000`
 - Swagger UI interactif : `http://localhost:3000/docs`
 
-### 5. Build de Production
+### 6. Build de Production
 ```bash
 npm run build   # Compile le backend TypeScript et package le widget React
 npm start       # Démarre le serveur en production
