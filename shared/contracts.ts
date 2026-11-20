@@ -13,3 +13,16 @@ export interface TopicDTO {
     title: string;
     particpantsIds: number[]
 }
+
+export interface ClientToServerEvents {
+    send_message: (payload: {topicId: number; content: string}) => void;
+    join_topic: (payload: {topicId: number}) =>  void;
+    delete_message: (payload : {topicId: number; messageId: number}) => void;
+}
+
+export interface ServerToClientEvents {
+    new_message: (message: MessageDTO) => void;
+    room_joined: (payload: {topicId: number; history: MessageDTO[]}) =>  void;
+    message_deleted: (payload : {topicId: number; messageId: number}) => void;
+    error_event: (payload: {code: string; message: string}) => void;
+}
