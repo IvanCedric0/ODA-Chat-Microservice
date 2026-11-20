@@ -176,6 +176,62 @@ describe('Étape 3 : Tests Couche Repositories (TopicRepository & MessageReposit
       assert.strictEqual(messages[1]?.id, firstMessageId);
     });
 
+    it('doit paginer de façon déterministe sans sauter de message même avec des timestamps identiques (P1 fix)', async () => {
+      // Salon dédié pour isoler complètement ce test des autres messages
+      const dedicatedTopic = await topicRepository.createTopicWithParticipants({
+        serviceName: 'forum',
+        title: 'Salon Dédié Test Pagination',
+        participants: [2001, 2002]
+      });
+
+      try {
+        const sameTimestamp = new Date('2026-11-20T12:00:00.000Z');
+
+        const m1 = await prisma.message.create({
+          data: { topicId: dedicatedTopic.id, senderId: 2001, content: 'same-time-1', createdAt: sameTimestamp }
+        });
+        const m2 = await prisma.message.create({
+          data: { topicId: dedicatedTopic.id, senderId: 2001, content: 'same-time-2', createdAt: sameTimestamp }
+        });
+        const m3 = await prisma.message.create({
+          data: { topicId: dedicatedTopic.id, senderId: 2001, content: 'same-time-3', createdAt: sameTimestamp }
+        });
+
+        // Pagination page par page (limit: 1)
+        const page1 = await messageRepository.findMessagesByTopic({
+          topicId: dedicatedTopic.id,
+          limit: 1
+        });
+        assert.strictEqual(page1.length, 1);
+        assert.strictEqual(page1[0]?.id, m3.id, 'Page 1 doit renvoyer le plus grand ID (m3)');
+
+        const page2 = await messageRepository.findMessagesByTopic({
+          topicId: dedicatedTopic.id,
+          limit: 1,
+          beforeId: m3.id
+        });
+        assert.strictEqual(page2.length, 1);
+        assert.strictEqual(page2[0]?.id, m2.id, 'Page 2 doit renvoyer m2 sans le sauter');
+
+        const page3 = await messageRepository.findMessagesByTopic({
+          topicId: dedicatedTopic.id,
+          limit: 1,
+          beforeId: m2.id
+        });
+        assert.strictEqual(page3.length, 1);
+        assert.strictEqual(page3[0]?.id, m1.id, 'Page 3 doit renvoyer m1 sans le sauter');
+
+        const page4 = await messageRepository.findMessagesByTopic({
+          topicId: dedicatedTopic.id,
+          limit: 1,
+          beforeId: m1.id
+        });
+        assert.strictEqual(page4.length, 0, 'Page 4 après le dernier message doit être vide');
+      } finally {
+        await prisma.topic.delete({ where: { id: dedicatedTopic.id } });
+      }
+    });
+
     it('doit effectuer une suppression logique (softDeleteMessage sans supprimer la ligne)', async () => {
       // Suppression logique du deuxième message
       const updated = await messageRepository.softDeleteMessage(secondMessageId);

@@ -29,7 +29,7 @@ export class MessageRepository {
 
         return this.db.message.findMany({
             where: where,
-            orderBy: {createdAt: 'desc'},
+            orderBy: {id: 'desc'},
             take: query.limit ?? 50,
         })
     }
