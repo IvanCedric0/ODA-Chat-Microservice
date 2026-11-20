@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "tsx --test 'src/tests/**/*.test.ts'",
     "dev": "tsx watch src/server.ts",
     "build": "tsc && npm --prefix client run build",
     "start": "node dist/server.js"
@@ -18,15 +18,18 @@
     "@fastify/static": "^10.1.11",
     "@fastify/swagger": "^9.9.5",
     "@fastify/swagger-ui": "^6.1.4",
+    "@prisma/adapter-pg": "^7.10.1",
     "@prisma/client": "^7.10.1",
     "dotenv": "^18.0.10",
     "fastify": "^5.12.8",
     "jsonwebtoken": "^9.0.3",
+    "pg": "^8.23.1",
     "socket.io": "^4.8.4"
   },
   "devDependencies": {
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^26.6.6",
+    "@types/pg": "^8.23.1",
     "prisma": "^7.10.1",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
