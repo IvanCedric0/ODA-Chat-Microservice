@@ -26,3 +26,20 @@ export interface ServerToClientEvents {
     message_deleted: (payload : {topicId: number; messageId: number}) => void;
     error_event: (payload: {code: string; message: string}) => void;
 }
+
+export interface CreateTopicInput {
+    serviceName: string;
+    title: string;
+    participants: number[]
+}
+export interface CreateMessageInput {
+    topicId: number;
+    senderId:number;
+    content: string;
+}
+
+export interface FindMessageQuery{
+    topicId: number;
+    limit?: number;
+    beforeId?: bigint   | number;
+}

@@ -6,9 +6,7 @@ import type { MessageDTO, TopicDTO, ClientToServerEvents, ServerToClientEvents }
 
 describe('Vérification Étape 1 & 2 — Micro-service Chat', () => {
 
-  // ---------------------------------------------------------------------------
   // 1. Tests Configuration Environnement (Étape 2)
-  // ---------------------------------------------------------------------------
   describe('Configuration & Variables d\'Environnement (src/config/env.ts)', () => {
     it('doit charger les variables d\'environnement sans erreur', () => {
       assert.ok(env, 'L\'objet env doit être défini');
@@ -31,9 +29,7 @@ describe('Vérification Étape 1 & 2 — Micro-service Chat', () => {
     });
   });
 
-  // ---------------------------------------------------------------------------
   // 2. Tests Contrats & DTOs (Étape 2)
-  // ---------------------------------------------------------------------------
   describe('Contrats Partagés (shared/contracts.ts)', () => {
     it('doit valider la conformité structurelle de MessageDTO et TopicDTO', () => {
       const mockMessage: MessageDTO = {
@@ -78,9 +74,7 @@ describe('Vérification Étape 1 & 2 — Micro-service Chat', () => {
     });
   });
 
-  // ---------------------------------------------------------------------------
   // 3. Tests Base de Données & Modèles Prisma (Étape 1 & 2)
-  // ---------------------------------------------------------------------------
   describe('PostgreSQL & Prisma Client (src/config/prisma.ts & prisma/schema.prisma)', () => {
     let createdTopicId: number | null = null;
 
