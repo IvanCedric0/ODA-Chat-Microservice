@@ -36,7 +36,7 @@ src/
 
 ## 3. Implementation (Feuille de route par étapes)
 
-### Étape 1 : Infrastructure & Base de données (`docker-compose.yml` & `prisma/schema.prisma`)
+### Étape 1 : Infrastructure & Base de données (`docker-compose.yml` & `prisma/schema.prisma`) --Done
 * **Objectif :** Isoler PostgreSQL dans un conteneur reproductible et définir les 3 tables (`Topic`, `TopicParticipant`, `Message`).
 * **Indices & Directions :**
   * Utilisez le port hôte `5433:5432` dans `docker-compose.yml` pour éviter tout conflit avec un PostgreSQL déjà installé localement.

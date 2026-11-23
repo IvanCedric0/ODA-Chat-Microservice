@@ -212,7 +212,15 @@ npx prisma migrate dev --name init
 npx prisma generate
 ```
 
-### 5. Démarrage
+### 5. Exécution des Tests Automatisés
+> ⚠️ Les tests d'intégration nécessitent que la base de données PostgreSQL soit préalablement démarrée (`docker compose up -d`).
+
+```bash
+npm test
+```
+Cette commande exécute automatiquement l'ensemble des suites de tests `*.test.ts` dans `src/tests/` via `tsx`.
+
+### 6. Démarrage
 ```bash
 # Mode développement (Fastify avec rechargement à chaud)
 npm run dev
@@ -223,7 +231,7 @@ npm --prefix client run dev
 - API & Serveur : `http://localhost:3000`
 - Swagger UI interactif : `http://localhost:3000/docs`
 
-### 6. Build de Production
+### 7. Build de Production
 ```bash
 npm run build   # Compile le backend TypeScript et package le widget React
 npm start       # Démarre le serveur en production

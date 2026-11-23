@@ -39,6 +39,6 @@ model Message {
   createdAt DateTime @default(now()) @map("created_at")
   topic     Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
 
-  @@index([topicId, createdAt(sort: Desc)])
+  @@index([topicId, id(sort: Desc)])
   @@map("messages")
 }
