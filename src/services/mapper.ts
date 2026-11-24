@@ -17,7 +17,7 @@ export function toMessageDTO(message: Message): MessageDTO {
         id: Number(message.id),
         topicId: message.topicId,
         senderId: message.senderId,
-        content: message.content,
+        content: message.isDeleted ? '' : message.content,
         isDeleted: message.isDeleted,
         createdAt: message.createdAt.toISOString()
     }
