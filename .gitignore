@@ -58,3 +58,5 @@ Thumbs.db
 .agents/
 .claude/
 skills-lock.json
+
+demo-p1.ts

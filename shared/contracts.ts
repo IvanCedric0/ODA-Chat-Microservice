@@ -41,5 +41,5 @@ export interface CreateMessageInput {
 export interface FindMessageQuery{
     topicId: number;
     limit?: number;
-    beforeId?: bigint   | number;
+    beforeId?: bigint | number | undefined;
 }

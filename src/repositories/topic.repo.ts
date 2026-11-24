@@ -30,6 +30,16 @@ export class TopicRepository {
             })
         }
 
+        async findTopicByIdWithParticipants(id: number) {
+            return this.db.topic.findUnique({
+                where : {id: id},
+                include: {
+                    participants: true
+                } 
+            })
+        }
+
+
         async isParticipant(topicId: number, userId: number) {
             const participant = await this.db.topicParticipant.findUnique({
                 where: {

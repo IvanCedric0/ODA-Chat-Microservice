@@ -11,5 +11,6 @@ function getEnv(key:string, fallback?: string):string {
 export const env = {
     nodeEnv: getEnv('NODE_ENV', 'development'),
     port: getEnv('PORT', '3000'),
-    databaseUrl: getEnv('DATABASE_URL')
+    databaseUrl: getEnv('DATABASE_URL'),
+    jwtSecret: getEnv('JWT_SECRET')
 } as const
