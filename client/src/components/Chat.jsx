@@ -2,7 +2,9 @@ import React, { useCallback, useState, useEffect, useLayoutEffect, useRef } from
 import MessageList from './MessageList';
 import MessageInput from './MessageInput';
 import UserList from './UserList';
+import { createHistoryQuery, getOldestMessageId } from '../lib/historyPagination';
 import { createChatSocket, sendChatMessage } from '../lib/socket';
+import { mapMessageDTO } from '../lib/messageMapper';
 import {
   getParentOrigin,
   getTrustedOnlineUsers,
@@ -143,13 +145,6 @@ const Chat = () => {
 
     isLeavingRef.current = false;
 
-    const mapMessages = (history) => history.map((message) => ({
-      id: message.id,
-      text: message.content,
-      userId: message.sender_id,
-      timestamp: message.created_at,
-    }));
-
     const loadHistoryPage = async (beforeId, prepend = false) => {
       if (prepend && (isLoadingOlderRef.current || !historyCursorRef.current)) return;
       if (prepend) {
@@ -159,8 +154,7 @@ const Chat = () => {
       }
 
       try {
-        const query = new URLSearchParams({ limit: String(HISTORY_PAGE_SIZE) });
-        if (beforeId) query.set('before_id', String(beforeId));
+        const query = createHistoryQuery(HISTORY_PAGE_SIZE, beforeId);
         const response = await fetch(`/api/v1/topics/${topicId}/messages?${query}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -170,8 +164,9 @@ const Chat = () => {
         const history = await response.json();
         if (!isMounted) return;
 
-        const page = mapMessages(history);
-        if (page.length) historyCursorRef.current = page[0].id;
+        const page = history.map(mapMessageDTO);
+        const oldestMessageId = getOldestMessageId(page);
+        if (oldestMessageId !== null) historyCursorRef.current = oldestMessageId;
         setHasMoreHistory(page.length === HISTORY_PAGE_SIZE);
         if (prepend && messageListRef.current) {
           scrollRestoreRef.current = {
@@ -246,12 +241,7 @@ const Chat = () => {
       if (!isMounted) return;
       setMessages((previous) => {
         if (previous.some((item) => item.id === message.id)) return previous;
-        return [...previous, {
-          id: message.id,
-          text: message.content,
-          userId: message.sender_id,
-          timestamp: message.created_at,
-        }];
+        return [...previous, mapMessageDTO(message)];
       });
     });
     socket.on('message_deleted', ({ message_id }) => {
@@ -305,6 +295,9 @@ const Chat = () => {
       return;
     }
     if (pendingDeleteTimeoutsRef.current.has(messageId)) return;
+    if (!window.confirm('Voulez-vous vraiment supprimer ce message ? Cette action est irréversible.')) {
+      return;
+    }
 
     setDeleteError('');
     setPendingDeleteIds((previous) => [...previous, messageId]);
