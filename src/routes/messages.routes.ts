@@ -18,14 +18,14 @@ export const messageRoutes: FastifyPluginAsync = async (fastify, _options) => {
                 type: 'object',
                 required: ['topicId'],
                 properties: {
-                    topicId: {type: 'integer'},
+                    topicId: {type: 'integer', minimum: 1},
                 }
             },
             querystring: {
                 type: 'object',
                 properties: {
-                    limit: {type: 'integer', default: 50},
-                    beforeId: {type: 'integer'}
+                    limit: {type: 'integer', default: 50, minimum: 1, maximum: 100},
+                    beforeId: {type: 'integer', minimum: 1}
                 }
             },
             response: {
@@ -83,7 +83,7 @@ export const messageRoutes: FastifyPluginAsync = async (fastify, _options) => {
                 type: 'object',
                 required: ['messageId'],
                 properties: {
-                    messageId: {type: 'integer'},
+                    messageId: {type: 'integer', minimum: 1},
                 }
             },
             response: {

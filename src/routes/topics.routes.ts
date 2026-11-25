@@ -60,7 +60,7 @@ export const topicRoutes: FastifyPluginAsync = async (fastify, _options) => {
                 type: 'object',
                 required: ['topicId'],
                 properties: {
-                    topicId: {type: 'integer'}
+                    topicId: {type: 'integer', minimum: 1}
                 }
             },
             body: {
@@ -109,8 +109,8 @@ export const topicRoutes: FastifyPluginAsync = async (fastify, _options) => {
                 type: 'object',
                 required: ['topicId', 'userId'],
                 properties: {
-                    topicId: {type: 'integer'},
-                    userId: {type: 'integer'}
+                    topicId: {type: 'integer', minimum: 1},
+                    userId: {type: 'integer', minimum: 1}
                 }
             },
             response: {
