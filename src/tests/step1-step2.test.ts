@@ -45,12 +45,12 @@ describe('Vérification Étape 1 & 2 — Micro-service Chat', () => {
         id: 42,
         serviceName: 'forum',
         title: 'Entraide',
-        particpantsIds: [108, 114]
+        participantIds: [108, 114]
       };
 
       assert.strictEqual(mockMessage.content, 'Test message');
       assert.strictEqual(mockTopic.id, 42);
-      assert.strictEqual(mockTopic.particpantsIds.length, 2);
+      assert.strictEqual(mockTopic.participantIds.length, 2);
     });
 
     it('doit valider la présence des types d\'événements Socket.io', () => {

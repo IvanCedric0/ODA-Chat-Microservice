@@ -23,8 +23,11 @@ export class MessageService {
     async getTopicMessages(topicId: number, userId: number, limit: number, cursor?: number): Promise<MessageDTO[]> {
         
         await this.verifyUserTopicParticipation(userId, topicId)
+        const normalized = Number.isFinite(limit) ? Math.trunc(limit) : 50 
+        
+        const safeLimit = Math.min(Math.max(Math.trunc(normalized), 1), 100);
 
-        const messages = await this.messageRepo.findMessagesByTopic({topicId, limit, beforeId: cursor})
+        const messages = await this.messageRepo.findMessagesByTopic({topicId, limit: safeLimit, beforeId: cursor})
 
         const mappedMessages = messages.map((m) => toMessageDTO(m))
 

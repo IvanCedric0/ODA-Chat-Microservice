@@ -44,7 +44,7 @@ export class TopicService {
         return toTopicDTO(updatedTopic)
     }
 
-    async removeParticipants(topicId: number, userId:number): Promise<TopicDTO>{
+    async removeParticipant(topicId: number, userId:number): Promise<TopicDTO>{
 
         const topic = await this.repo.findTopicByIdWithParticipants(topicId)
         if(topic === null) {

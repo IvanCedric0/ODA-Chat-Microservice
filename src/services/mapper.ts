@@ -8,7 +8,7 @@ export function toTopicDTO(topic: TopicWithParticipants): TopicDTO {
         id: topic.id,
         serviceName: topic.serviceName,
         title: topic.title,
-        particpantsIds: topic.participants.map((p) => p.userId) ?? []
+        participantIds: topic.participants.map((p) => p.userId) ?? []
     }
 }
 

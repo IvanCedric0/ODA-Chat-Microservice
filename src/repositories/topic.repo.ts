@@ -13,7 +13,7 @@ export class TopicRepository {
                     serviceName: body.serviceName,
                     title: body.title,
                     participants: {
-                        create: (body.participants ?? []).map((userId) => ({
+                        create: (body.participantIds ?? []).map((userId) => ({
                             userId: userId
                         }))
                     }
@@ -59,9 +59,10 @@ export class TopicRepository {
         }
 
         async deleteParticipant(topicId: number, userId: number){
-            return this.db.topicParticipant.delete({
+            return this.db.topicParticipant.deleteMany({
                 where: {
-                    topicId_userId: {topicId, userId}
+                    topicId,
+                    userId
                 }
             })
         }
