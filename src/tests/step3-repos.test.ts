@@ -40,7 +40,7 @@ describe('Étape 3 : Tests Couche Repositories (TopicRepository & MessageReposit
       const topic = await topicRepository.createTopicWithParticipants({
         serviceName: 'forum',
         title: 'Salon Test Repositories',
-        participants: [1001, 1002]
+        participantIds: [1001, 1002]
       });
 
       assert.ok(topic, 'Le topic doit être retourné');
@@ -181,7 +181,7 @@ describe('Étape 3 : Tests Couche Repositories (TopicRepository & MessageReposit
       const dedicatedTopic = await topicRepository.createTopicWithParticipants({
         serviceName: 'forum',
         title: 'Salon Dédié Test Pagination',
-        participants: [2001, 2002]
+        participantIds: [2001, 2002]
       });
 
       try {

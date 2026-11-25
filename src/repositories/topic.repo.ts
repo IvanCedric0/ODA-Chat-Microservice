@@ -13,7 +13,7 @@ export class TopicRepository {
                     serviceName: body.serviceName,
                     title: body.title,
                     participants: {
-                        create: (body.participants ?? []).map((userId) => ({
+                        create: (body.participantIds ?? []).map((userId) => ({
                             userId: userId
                         }))
                     }

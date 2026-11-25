@@ -11,7 +11,7 @@ export interface TopicDTO {
     id: number;
     serviceName: string;
     title: string;
-    particpantsIds: number[]
+    participantIds: number[]
 }
 
 export interface ClientToServerEvents {
@@ -30,7 +30,7 @@ export interface ServerToClientEvents {
 export interface CreateTopicInput {
     serviceName: string;
     title: string;
-    participants: number[]
+    participantIds: number[]
 }
 export interface CreateMessageInput {
     topicId: number;

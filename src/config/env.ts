@@ -12,5 +12,6 @@ export const env = {
     nodeEnv: getEnv('NODE_ENV', 'development'),
     port: getEnv('PORT', '3000'),
     databaseUrl: getEnv('DATABASE_URL'),
-    jwtSecret: getEnv('JWT_SECRET')
+    jwtSecret: getEnv('JWT_SECRET'),
+    serviceKey: getEnv('SERVICE_API_KEY')
 } as const
