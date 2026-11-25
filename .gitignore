@@ -4,6 +4,9 @@ node_modules/
 .pnp.js
 
 # Production & Build outputs
+/dist/
+/public/assets/
+/public/index.html
 dist-ssr/
 build/
 *.tsbuildinfo

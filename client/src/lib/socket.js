@@ -8,9 +8,9 @@ import { io } from 'socket.io-client';
  * >}
  */
 
-export function createChatSocket(token) {
+export function createChatSocket(token, topicId) {
   return io({
-    auth: { token },
+    auth: { token, topicId },
     autoConnect: false,
   });
 }
