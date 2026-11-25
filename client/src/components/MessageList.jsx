@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 const MessageList = ({
   messages,
@@ -14,8 +14,8 @@ const MessageList = ({
   onLoadOlder,
 }) => {
   const userNames = new Map(users.map((user) => [user.id, user.name]));
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
 
-  // Format timestamp for display
   const formatTime = (timestamp) => {
     const date = new Date(timestamp);
     if (Number.isNaN(date.getTime())) return '';
@@ -82,15 +82,50 @@ const MessageList = ({
               )}
               <div className="message-text">{message.text}</div>
               {!message.isSystem && message.userId === currentUser && (
-                <button
-                  type="button"
-                  className="delete-message-button"
-                  onClick={() => onDeleteMessage(message.id)}
-                  disabled={isDeleting}
-                  aria-label={isDeleting ? 'Suppression en cours' : 'Supprimer ce message'}
-                >
-                  {isDeleting ? 'Suppression...' : 'Supprimer'}
-                </button>
+                isDeleting ? (
+                  <button
+                    type="button"
+                    className="delete-message-button"
+                    disabled
+                    aria-label="Suppression en cours"
+                  >
+                    Suppression...
+                  </button>
+                ) : confirmDeleteId === message.id ? (
+                  <div
+                    className="delete-confirmation"
+                    role="group"
+                    aria-label="Confirmation de suppression du message"
+                  >
+                    <span>Supprimer ce message ?</span>
+                    <button
+                      type="button"
+                      className="confirm-delete-button"
+                      onClick={() => {
+                        setConfirmDeleteId(null);
+                        onDeleteMessage(message.id);
+                      }}
+                    >
+                      Confirmer
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDeleteId(null)}
+                      aria-label="Annuler la suppression"
+                    >
+                      Annuler
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    className="delete-message-button"
+                    onClick={() => setConfirmDeleteId(message.id)}
+                    aria-label="Supprimer ce message"
+                  >
+                    Supprimer
+                  </button>
+                )
               )}
             </div>
           );

@@ -297,6 +297,32 @@
   opacity: 0.55;
 }
 
+.delete-confirmation {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+}
+
+.delete-confirmation button {
+  min-height: 32px;
+  padding: 0.3rem 0.55rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #334155;
+  cursor: pointer;
+  font: inherit;
+}
+
+.delete-confirmation .confirm-delete-button {
+  border-color: #fecaca;
+  color: #b91c1c;
+}
+
 
 .user-list {
   padding: 1.5rem;
