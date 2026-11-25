@@ -36,7 +36,7 @@ export function verifyServiceKey(apiKeyHeader?: string | string[]): void {
     const received = Buffer.from(apiKeyHeader)
     const expected = Buffer.from(env.serviceKey)
 
-    if (received.length !== expected.length || timingSafeEqual(received, expected)){
+    if (received.length !== expected.length || !timingSafeEqual(received, expected)){
         throw new Error('UNAUTHORIZED_INVALID_SERVICE_KEY')
     }
 }

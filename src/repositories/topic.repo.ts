@@ -59,9 +59,10 @@ export class TopicRepository {
         }
 
         async deleteParticipant(topicId: number, userId: number){
-            return this.db.topicParticipant.delete({
+            return this.db.topicParticipant.deleteMany({
                 where: {
-                    topicId_userId: {topicId, userId}
+                    topicId,
+                    userId
                 }
             })
         }
