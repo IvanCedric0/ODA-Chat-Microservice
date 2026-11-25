@@ -8,6 +8,8 @@ export const env = {
   nodeEnv: process.env.NODE_ENV ?? 'development',
   databaseUrl: process.env.DATABASE_URL,
   jwtSecret: process.env.JWT_SECRET ?? 'dev-secret',
+  jwtIssuer: process.env.JWT_ISSUER,
+  jwtAudience: process.env.JWT_AUDIENCE,
   allowedOrigins: (process.env.ALLOWED_ORIGINS ?? 'http://localhost:5173')
     .split(',')
     .map((origin) => origin.trim())

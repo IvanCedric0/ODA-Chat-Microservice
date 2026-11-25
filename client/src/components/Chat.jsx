@@ -1,9 +1,19 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useCallback, useState, useEffect, useLayoutEffect, useRef } from 'react';
 import MessageList from './MessageList';
 import MessageInput from './MessageInput';
 import UserList from './UserList';
-import { createChatSocket } from '../lib/socket';
+import { createChatSocket, sendChatMessage } from '../lib/socket';
+import {
+  getParentOrigin,
+  getTrustedOnlineUsers,
+  isTrustedAuthMessage,
+  parseAllowedParentOrigins,
+} from '../lib/chatAuth';
 import './Chat.css';
+
+const allowedParentOrigins = parseAllowedParentOrigins(
+  import.meta.env.VITE_CHAT_PARENT_ORIGINS || '',
+);
 
 const decodePayload = (jwt) => {
   try {
@@ -16,50 +26,142 @@ const decodePayload = (jwt) => {
 };
 
 const Chat = () => {
+  const HISTORY_PAGE_SIZE = 50;
   const initialParams = new URLSearchParams(window.location.search);
   const initialTopicId = Number(initialParams.get('topicId'));
-  const initialToken = initialParams.get('token');
-  const missingConfig = !Number.isInteger(initialTopicId) || initialTopicId <= 0 || !initialToken;
-  const initialPayload = initialToken ? decodePayload(initialToken) : {};
-  const initialUserId = initialPayload.userId ?? Number(initialPayload.sub);
-  const initialCurrentUser = Number.isInteger(initialUserId)
-    ? { id: initialUserId, name: `Utilisateur ${initialUserId}` }
-    : null;
+  const tokenInUrl = initialParams.has('token');
+  const hasValidTopic = Number.isInteger(initialTopicId) && initialTopicId > 0;
+  const parentOrigin = window.parent === window ? '' : getParentOrigin(document.referrer);
+  const isAllowedParentOrigin = allowedParentOrigins.includes(parentOrigin);
+  const [authToken, setAuthToken] = useState(null);
+  const authPayload = authToken ? decodePayload(authToken) : {};
+  const authUserId = authPayload.userId ?? Number(authPayload.sub);
 
   const [messages, setMessages] = useState([]);
-  const [users, setUsers] = useState(initialCurrentUser ? [initialCurrentUser] : []);
-  const [currentUser] = useState(initialCurrentUser);
-  const [isConnected, setIsConnected] = useState(false);
-  const [isLoading, setIsLoading] = useState(!missingConfig);
-  const [error, setError] = useState(
-    missingConfig ? 'Paramètres manquants : topicId et token sont requis.' : ''
+  const [onlineUsers, setOnlineUsers] = useState([]);
+  const [hasPresenceData, setHasPresenceData] = useState(false);
+  const [connectionState, setConnectionState] = useState('connecting');
+  const [connectionError, setConnectionError] = useState('');
+  const [deleteError, setDeleteError] = useState('');
+  const [pendingDeleteIds, setPendingDeleteIds] = useState([]);
+  const [hasLeft, setHasLeft] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingOlder, setIsLoadingOlder] = useState(false);
+  const [hasMoreHistory, setHasMoreHistory] = useState(false);
+  const [historyError, setHistoryError] = useState('');
+  const [error, setError] = useState('');
+  const [authError, setAuthError] = useState(
+    tokenInUrl
+      ? 'Le token fourni dans l’URL a été ignoré. Le chat attend le token sécurisé de l’application hôte.'
+      : '',
   );
 
-  const messagesEndRef = useRef(null);
+  const messageListRef = useRef(null);
   const socketRef = useRef(null);
+  const hostOriginRef = useRef(null);
+  const retryHistoryRef = useRef(null);
+  const pendingDeleteTimeoutsRef = useRef(new Map());
+  const isLeavingRef = useRef(false);
+  const historyCursorRef = useRef(null);
+  const loadOlderRef = useRef(null);
+  const isLoadingOlderRef = useRef(false);
+  const isNearBottomRef = useRef(true);
+  const scrollRestoreRef = useRef(null);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
+  const notifyHostPresence = useCallback((type) => {
+    if (
+      window.parent !== window
+      && hostOriginRef.current
+      && Number.isInteger(authUserId)
+    ) {
+      window.parent.postMessage(
+        { type, topicId: initialTopicId, userId: authUserId },
+        hostOriginRef.current,
+      );
+    }
+  }, [authUserId, initialTopicId]);
 
-  useEffect(() => {
-    scrollToBottom();
+  useLayoutEffect(() => {
+    const list = messageListRef.current;
+    if (!list) return;
+
+    if (scrollRestoreRef.current) {
+      const { scrollHeight, scrollTop } = scrollRestoreRef.current;
+      list.scrollTop = scrollTop + list.scrollHeight - scrollHeight;
+      scrollRestoreRef.current = null;
+    } else if (isNearBottomRef.current) {
+      list.scrollTop = list.scrollHeight;
+    }
   }, [messages]);
 
   useEffect(() => {
-    if (missingConfig) return undefined;
+    const url = new URL(window.location.href);
+    if (url.searchParams.has('token')) {
+      url.searchParams.delete('token');
+      window.history.replaceState(
+        window.history.state,
+        '',
+        `${url.pathname}${url.search}${url.hash}`,
+      );
+    }
+
+    if (!hasValidTopic || !isAllowedParentOrigin) return undefined;
+
+    const handleHostMessage = (event) => {
+      if (isTrustedAuthMessage(event, allowedParentOrigins, window.parent)) {
+        hostOriginRef.current = event.origin;
+        setAuthToken(event.data.token);
+        setAuthError('');
+        setIsLoading(true);
+        setError('');
+        setConnectionState('connecting');
+        return;
+      }
+
+      const users = getTrustedOnlineUsers(event, allowedParentOrigins, window.parent);
+      if (users !== null) {
+        hostOriginRef.current = event.origin;
+        setOnlineUsers(users);
+        setHasPresenceData(true);
+      }
+    };
+
+    window.addEventListener('message', handleHostMessage);
+    window.parent.postMessage({ type: 'CHAT_READY' }, parentOrigin);
+
+    return () => window.removeEventListener('message', handleHostMessage);
+  }, [hasValidTopic, isAllowedParentOrigin, parentOrigin]);
+
+  useEffect(() => {
+    if (!hasValidTopic || !authToken) return undefined;
 
     const topicId = initialTopicId;
-    const token = initialToken;
+    const token = authToken;
 
     let isMounted = true;
+    const pendingDeleteTimeouts = pendingDeleteTimeoutsRef.current;
 
-    const payload = decodePayload(token);
-    const userId = payload.userId ?? Number(payload.sub);
+    isLeavingRef.current = false;
 
-    const loadHistory = async () => {
+    const mapMessages = (history) => history.map((message) => ({
+      id: message.id,
+      text: message.content,
+      userId: message.sender_id,
+      timestamp: message.created_at,
+    }));
+
+    const loadHistoryPage = async (beforeId, prepend = false) => {
+      if (prepend && (isLoadingOlderRef.current || !historyCursorRef.current)) return;
+      if (prepend) {
+        isLoadingOlderRef.current = true;
+        setIsLoadingOlder(true);
+        setHistoryError('');
+      }
+
       try {
-        const response = await fetch(`/api/v1/topics/${topicId}/messages`, {
+        const query = new URLSearchParams({ limit: String(HISTORY_PAGE_SIZE) });
+        if (beforeId) query.set('before_id', String(beforeId));
+        const response = await fetch(`/api/v1/topics/${topicId}/messages?${query}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!response.ok) {
@@ -68,41 +170,78 @@ const Chat = () => {
         const history = await response.json();
         if (!isMounted) return;
 
-        setMessages(history.map((message) => ({
-          id: message.id,
-          text: message.content,
-          userId: message.sender_id,
-          timestamp: message.created_at,
-        })));
-        const senderIds = Array.from(new Set(history.map((message) => message.sender_id)));
-        if (Number.isInteger(userId) && !senderIds.includes(userId)) {
-          senderIds.unshift(userId);
+        const page = mapMessages(history);
+        if (page.length) historyCursorRef.current = page[0].id;
+        setHasMoreHistory(page.length === HISTORY_PAGE_SIZE);
+        if (prepend && messageListRef.current) {
+          scrollRestoreRef.current = {
+            scrollHeight: messageListRef.current.scrollHeight,
+            scrollTop: messageListRef.current.scrollTop,
+          };
         }
-        setUsers(senderIds.map((id) => ({
-          id,
-          name: `Utilisateur ${id}`,
-        })));
+        setMessages((previous) => {
+          const unique = new Map(previous.map((message) => [message.id, message]));
+          page.forEach((message) => unique.set(message.id, message));
+          return Array.from(unique.values()).sort((a, b) => a.id - b.id);
+        });
       } catch (loadError) {
-        if (isMounted) setError(loadError.message);
+        if (isMounted) {
+          if (prepend) setHistoryError(loadError.message);
+          else setError(loadError.message);
+        }
       } finally {
-        if (isMounted) setIsLoading(false);
+        if (prepend) {
+          isLoadingOlderRef.current = false;
+          if (isMounted) setIsLoadingOlder(false);
+        } else if (isMounted) {
+          setIsLoading(false);
+        }
       }
     };
 
-    loadHistory();
+    loadOlderRef.current = () => loadHistoryPage(historyCursorRef.current, true);
+    retryHistoryRef.current = () => {
+      setIsLoading(true);
+      setError('');
+      return loadHistoryPage(null);
+    };
+    loadHistoryPage(null);
 
     const socket = createChatSocket(token, topicId);
     socketRef.current = socket;
 
     socket.on('connect', () => {
-      if (isMounted) setIsConnected(true);
+      if (isMounted) {
+        setConnectionState('connected');
+        setConnectionError('');
+        notifyHostPresence('CHAT_JOIN');
+      }
     });
-    socket.on('disconnect', () => {
-      if (isMounted) setIsConnected(false);
+    socket.on('disconnect', (reason) => {
+      if (!isMounted) return;
+      if (isLeavingRef.current) {
+        setConnectionState('disconnected');
+      } else {
+        setConnectionState(reason === 'io server disconnect' ? 'disconnected' : 'reconnecting');
+      }
     });
     socket.on('connect_error', (socketError) => {
-      if (isMounted) setError(socketError.message || 'Connexion au chat impossible.');
+      if (isMounted) {
+        setConnectionState('reconnecting');
+        setConnectionError(socketError.message || 'Connexion au chat impossible.');
+      }
     });
+    const onReconnectAttempt = () => {
+      if (isMounted) setConnectionState('reconnecting');
+    };
+    const onReconnectFailed = () => {
+      if (isMounted) {
+        setConnectionState('disconnected');
+        setConnectionError('Reconnexion impossible. Réessayez manuellement.');
+      }
+    };
+    socket.io.on('reconnect_attempt', onReconnectAttempt);
+    socket.io.on('reconnect_failed', onReconnectFailed);
     socket.on('new_message', (message) => {
       if (!isMounted) return;
       setMessages((previous) => {
@@ -114,13 +253,15 @@ const Chat = () => {
           timestamp: message.created_at,
         }];
       });
-      setUsers((previous) => previous.some((user) => user.id === message.sender_id)
-        ? previous
-        : [...previous, { id: message.sender_id, name: `Utilisateur ${message.sender_id}` }]);
     });
     socket.on('message_deleted', ({ message_id }) => {
       if (isMounted) {
+        const timer = pendingDeleteTimeoutsRef.current.get(message_id);
+        if (timer !== undefined) window.clearTimeout(timer);
+        pendingDeleteTimeoutsRef.current.delete(message_id);
+        setPendingDeleteIds((previous) => previous.filter((id) => id !== message_id));
         setMessages((previous) => previous.filter((message) => message.id !== message_id));
+        setDeleteError('');
       }
     });
 
@@ -128,35 +269,124 @@ const Chat = () => {
 
     return () => {
       isMounted = false;
+      loadOlderRef.current = null;
+      retryHistoryRef.current = null;
+      pendingDeleteTimeouts.forEach((timer) => window.clearTimeout(timer));
+      pendingDeleteTimeouts.clear();
+      socket.io.off('reconnect_attempt', onReconnectAttempt);
+      socket.io.off('reconnect_failed', onReconnectFailed);
       socket.off();
       socket.disconnect();
       socketRef.current = null;
     };
-  }, [initialToken, initialTopicId, missingConfig]);
+  }, [authToken, initialTopicId, hasValidTopic, notifyHostPresence]);
 
-  const handleSendMessage = (messageText) => {
-    if (!messageText.trim()) return { ok: false, error: 'Le message est vide.' };
-    if (!socketRef.current?.connected) return { ok: false, error: 'Vous êtes déconnecté.' };
-
-    return new Promise((resolve) => {
-      socketRef.current.emit(
-        'send_message',
-        { content: messageText.trim() },
-        (response) => resolve(response),
-      );
-    });
-  };
-
-  const handleDeleteMessage = (messageId) => {
-    if (socketRef.current?.connected) {
-      socketRef.current.emit('delete_message', { message_id: messageId });
+  const handleMessageListScroll = (event) => {
+    const { scrollTop, scrollHeight, clientHeight } = event.currentTarget;
+    isNearBottomRef.current = scrollHeight - scrollTop - clientHeight < 80;
+    if (scrollTop < 80 && hasMoreHistory && !isLoadingOlderRef.current) {
+      loadOlderRef.current?.();
     }
   };
 
-  const handleLeave = () => {
-    socketRef.current?.disconnect();
-    setIsConnected(false);
+  const handleLoadOlder = () => {
+    loadOlderRef.current?.();
   };
+
+  const handleSendMessage = (messageText) => {
+    if (!messageText.trim()) return { ok: false, error: 'Le message est vide.' };
+    return sendChatMessage(socketRef.current, messageText.trim());
+  };
+
+  const handleDeleteMessage = (messageId) => {
+    const socket = socketRef.current;
+    if (!socket?.connected) {
+      setDeleteError('Impossible de supprimer le message : vous êtes déconnecté.');
+      return;
+    }
+    if (pendingDeleteTimeoutsRef.current.has(messageId)) return;
+
+    setDeleteError('');
+    setPendingDeleteIds((previous) => [...previous, messageId]);
+    const timer = window.setTimeout(() => {
+      pendingDeleteTimeoutsRef.current.delete(messageId);
+      setPendingDeleteIds((previous) => previous.filter((id) => id !== messageId));
+      setDeleteError('La suppression n’a pas été confirmée. Vérifiez la connexion et réessayez.');
+    }, 8000);
+    pendingDeleteTimeoutsRef.current.set(messageId, timer);
+    socket.emit('delete_message', { message_id: messageId });
+  };
+
+  const handleLeave = () => {
+    isLeavingRef.current = true;
+    socketRef.current?.disconnect();
+    pendingDeleteTimeoutsRef.current.forEach((timer) => window.clearTimeout(timer));
+    pendingDeleteTimeoutsRef.current.clear();
+    setPendingDeleteIds([]);
+    setConnectionState('disconnected');
+    setHasLeft(true);
+    notifyHostPresence('CHAT_LEAVE');
+  };
+
+  const handleReconnect = () => {
+    if (!socketRef.current || connectionState === 'reconnecting') return;
+    setConnectionError('');
+    setConnectionState('connecting');
+    socketRef.current.connect();
+  };
+
+  const isConnected = connectionState === 'connected';
+  const currentUser = Number.isInteger(authUserId)
+    ? onlineUsers.find((user) => user.id === authUserId)
+      || { id: authUserId, name: `Utilisateur ${authUserId}` }
+    : null;
+  const connectionLabel = {
+    connecting: 'Connexion...',
+    connected: 'Connecté',
+    reconnecting: 'Reconnexion...',
+    disconnected: 'Déconnecté',
+  }[connectionState];
+
+  if (hasLeft) {
+    return (
+      <div className="login-container">
+        <div className="login-form">
+          <h2>Chat quitté</h2>
+          <p>Vous avez quitté ce salon. Vous pouvez fermer cette fenêtre.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!hasValidTopic || !authToken) {
+    const heading = !hasValidTopic
+      ? 'Salon invalide'
+      : allowedParentOrigins.length === 0
+        ? 'Configuration requise'
+        : !parentOrigin
+          ? 'Ouvrez le widget depuis l’application hôte'
+          : !isAllowedParentOrigin
+            ? 'Origine hôte non autorisée'
+        : 'En attente de l’application hôte';
+    const message = !hasValidTopic
+      ? 'Un topicId valide est requis dans l’URL.'
+      : allowedParentOrigins.length === 0
+        ? 'Configurez VITE_CHAT_PARENT_ORIGINS avec les origines exactes autorisées à intégrer le chat.'
+        : !parentOrigin
+          ? 'Ouvrez cette page dans une iframe intégrée par l’application hôte.'
+          : !isAllowedParentOrigin
+            ? `L’origine ${parentOrigin} n’est pas autorisée dans VITE_CHAT_PARENT_ORIGINS.`
+          : authError || 'L’application hôte doit transmettre le JWT via postMessage.';
+
+    return (
+      <div className="login-container">
+        <div className="login-form">
+          <h2>{heading}</h2>
+          <p>{message}</p>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -174,6 +404,9 @@ const Chat = () => {
         <div className="login-form">
           <h2>Chat indisponible</h2>
           <p>{error}</p>
+          <button type="button" onClick={() => retryHistoryRef.current?.()}>
+            Réessayer
+          </button>
         </div>
       </div>
     );
@@ -184,27 +417,54 @@ const Chat = () => {
       <div className="chat-header">
         <h2>Salon #{new URLSearchParams(window.location.search).get('topicId')}</h2>
         <div className="connection-status">
-          <span className={`status ${isConnected ? 'connected' : 'disconnected'}`}>
-            {isConnected ? 'Connecté' : 'Déconnecté'}
+          <span
+            className={`status status-${connectionState}`}
+            role="status"
+            aria-live="polite"
+          >
+            {connectionLabel}
           </span>
-          <button onClick={handleLeave} className="leave-button">
+          {connectionState === 'disconnected' && (
+            <button type="button" onClick={handleReconnect} className="retry-button">
+              Réessayer
+            </button>
+          )}
+          <button type="button" onClick={handleLeave} className="leave-button">
             Quitter
           </button>
         </div>
       </div>
+
+      {connectionError && <p className="chat-notice" role="alert">{connectionError}</p>}
+      {error && (
+        <p className="chat-notice" role="alert">
+          {error}
+          <button type="button" onClick={() => retryHistoryRef.current?.()}>
+            Réessayer l’historique
+          </button>
+        </p>
+      )}
+      {deleteError && <p className="chat-notice" role="alert">{deleteError}</p>}
 
       <div className="chat-body">
         <div className="messages-section">
           <MessageList 
             messages={messages} 
             currentUser={currentUser?.id}
+            users={onlineUsers}
             onDeleteMessage={handleDeleteMessage}
+            pendingDeleteIds={pendingDeleteIds}
+            listRef={messageListRef}
+            onScroll={handleMessageListScroll}
+            hasMoreHistory={hasMoreHistory}
+            isLoadingOlder={isLoadingOlder}
+            historyError={historyError}
+            onLoadOlder={handleLoadOlder}
           />
-          <div ref={messagesEndRef} />
         </div>
         
         <div className="users-section">
-          <UserList users={users} />
+          <UserList users={onlineUsers} presenceAvailable={hasPresenceData} />
         </div>
       </div>
 

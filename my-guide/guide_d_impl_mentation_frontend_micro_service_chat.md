@@ -35,7 +35,7 @@ client/
 ```
 
 ### Le flux de données côté client :
-1. **Initialisation :** `App.jsx` lit `?topicId=...&token=...` dans l'URL de l'`<iframe>` et extrait le `currentUserId` depuis le payload du JWT.
+1. **Initialisation :** `App.jsx` lit `topicId` dans l'URL de l'`<iframe>`, puis reçoit le JWT avec `postMessage` depuis une origine hôte autorisée et extrait le `currentUserId` du payload.
 2. **Temps réel (`useChatSocket`) :** Ouvre la connexion Socket.io, rejoint la room `topicId`, charge l'historique initial (`room_joined`) et écoute les mises à jour (`new_message`, `message_deleted`).
 3. **Enrichissement UI (`useUserProfiles`) :** Comme le backend Chat ne renvoie que des identifiants numériques (`senderId`), ce hook interroge `Identity` en une seule requête groupée pour récupérer les noms et avatars manquants et les met en cache.
 
@@ -53,9 +53,10 @@ client/
 ### Étape 2 : Extraction des paramètres & Identité courante (`src/App.jsx`)
 * **Objectif :** Récupérer le contexte d'exécution dès le montage du composant.
 * **Indices & Directions :**
-  * Utilisez `new URLSearchParams(window.location.search)` pour lire `topicId` (converti en nombre) et `token`.
-  * Affichez un écran d'erreur clair si l'un des deux paramètres est absent de l'URL.
-  * Pour savoir quels messages appartiennent à l'utilisateur connecté (afin de les aligner à droite et d'afficher le bouton de suppression), décodez la partie centrale du JWT (Base64 via `atob(token.split('.')[1])`) pour lire `userId` ou `sub`.
+  * Utilisez `new URLSearchParams(window.location.search)` pour lire `topicId` (converti en nombre). Ne lisez jamais le JWT depuis l'URL.
+  * Configurez `VITE_CHAT_PARENT_ORIGINS` avec les origines hôtes exactes autorisées.
+  * Recevez `{ type: 'SET_AUTH_TOKEN', token }` par `postMessage`, en vérifiant l'origine et la fenêtre parente.
+  * Pour savoir quels messages appartiennent à l'utilisateur connecté, décodez ensuite la partie centrale du JWT pour lire `userId` ou `sub`.
 
 ### Étape 3 : Encapsulation du Client Socket.io (`src/lib/socket.js` & `src/hooks/useChatSocket.js`)
 * **Objectif :** Isoler la logique réseau des composants visuels React.
@@ -88,14 +89,15 @@ client/
 ## 4. Tests (Validation de l'interface et des flux)
 
 1. **Test de communication multi-onglets :**
-   * Demandez au backend de générer deux URLs de test avec des jetons différents (`npm run tokens`).
-   * Ouvrez l'URL de l'utilisateur A dans un onglet et celle de l'utilisateur B dans un autre onglet.
+   * Intégrez le widget dans une page hôte locale et configurez son origine exacte dans `client/.env.local` via `VITE_CHAT_PARENT_ORIGINS`.
+   * Transmettez deux jetons de test différents aux iframes avec `postMessage` après réception de l'événement `CHAT_READY`.
    * Vérifiez que l'envoi, la réception et la suppression d'un message se reflètent instantanément des deux côtés sans recharger la page.
 2. **Test de résilience (Panique réseau & Indisponibilité `Identity`) :**
    * Coupez temporairement l'accès à l'endpoint `Identity` (ou simulez une erreur réseau dans les DevTools du navigateur) et vérifiez que le chat reste utilisable grâce au repli `Utilisateur #<id>`.
    * Simulez une coupure réseau (mode *Offline* 3 secondes dans DevTools puis retour en ligne) pour vérifier que la reconnexion automatique réinscrit bien le client dans le salon.
 3. **Test d'intégration `<iframe>` :**
-   * Créez un fichier HTML externe minimal contenant `<iframe src="http://localhost:3000/embed/?topicId=1&token=..." width="400" height="600"></iframe>` pour valider le rendu réel en contexte embarqué.
+   * Créez un fichier HTML externe minimal contenant `<iframe src="http://localhost:3000/embed/?topicId=1" width="400" height="600"></iframe>`.
+   * Attendez le message `CHAT_READY`, puis transmettez `{ type: 'SET_AUTH_TOKEN', token }` avec `postMessage` en ciblant l'origine exacte du widget.
 
 ---
 
@@ -110,10 +112,10 @@ client/
 ## 6. Verify (Comment vérifier votre travail ?)
 
 1. Démarrez le backend (`npm run dev` à la racine) et le serveur de développement Vite (`npm --prefix client run dev`).
-2. Vérifiez que l'application s'affiche sur `http://localhost:5173/embed/?topicId=1&token=<votre_token>` sans erreur CORS dans la console du navigateur.
+2. Vérifiez que l'application s'affiche sur `http://localhost:5173/embed/?topicId=1` et attend le token de l'application hôte.
 3. Testez la compilation finale avec `npm --prefix client run build` :
    * Vérifiez que les fichiers générés apparaissent bien dans `public/`.
-   * Accédez à `http://localhost:3000/embed/?topicId=1&token=<votre_token>` (port du backend Fastify) et validez que l'application fonctionne de manière identique.
+   * Accédez à `http://localhost:3000/embed/?topicId=1` (port du backend Fastify), intégrez la page depuis une origine autorisée et validez le transfert du token via `postMessage`.
 
 ---
 

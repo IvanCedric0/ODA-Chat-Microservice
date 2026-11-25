@@ -233,7 +233,9 @@ sequenceDiagram
     participant Identity as Service Identity
     participant DB as PostgreSQL (Chat)
 
-    User->>Widget: Charge /embed/?topicId=42&token=JWT
+    User->>Widget: Charge /embed/?topicId=42
+    Widget-->>User: postMessage CHAT_READY
+    User->>Widget: postMessage SET_AUTH_TOKEN (origine hôte vérifiée)
     Widget->>SocketServer: Handshake Socket.io (JWT)
     SocketServer->>SocketServer: Vérifie signature JWT (userId = 101)
     Widget->>SocketServer: emit("join_topic", { topicId: 42 })

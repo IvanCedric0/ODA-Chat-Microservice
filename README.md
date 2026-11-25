@@ -50,7 +50,7 @@ Content-Type: application/json
 ```json
 {
   "id": 42,
-  "embed_url": "https://chat.domain.local/embed/42"
+  "embed_url": "https://chat.domain.local/embed/?topicId=42"
 }
 ```
 
@@ -84,7 +84,7 @@ Idéal pour intégrer le chat en quelques lignes sans développer d'interface.
 <!-- 1. Balise iFrame pointant sur l'embed_url -->
 <iframe
   id="chat-iframe"
-  src="https://chat.domain.local/embed/42"
+  src="https://chat.domain.local/embed/?topicId=42"
   width="100%"
   height="600"
   style="border: none;"
@@ -93,21 +93,51 @@ Idéal pour intégrer le chat en quelques lignes sans développer d'interface.
 <script>
   const frame = document.getElementById('chat-iframe');
   const CHAT_ORIGIN = 'https://chat.domain.local';
+  // Configurez VITE_CHAT_PARENT_ORIGINS avec l'origine exacte de cette application.
 
-  // 2. Transmission du token JWT dès le chargement de l'iFrame
-  frame.addEventListener('load', () => {
-    const userJwt = "eyJhbGciOiJIUzI1Ni..."; // Jeton de session utilisateur émis par Identity
+  const userJwt = "eyJhbGciOiJIUzI1Ni..."; // Jeton de session utilisateur émis par Identity
+  const topicId = 42;
+  const usersById = new Map([
+    [108, { id: 108, name: 'Amira' }],
+    [114, { id: 114, name: 'Noah' }]
+  ]);
+  let onlineUsers = [{ id: 108, name: 'Amira' }]; // Remplacez par la présence initiale de l'application.
 
-    frame.contentWindow.postMessage(
-      {
-        type: 'SET_AUTH_TOKEN',
-        token: userJwt
-      },
+  const sendOnlineUsers = () => {
+    frame.contentWindow?.postMessage(
+      { type: 'SET_ONLINE_USERS', users: onlineUsers },
       CHAT_ORIGIN
     );
+  };
+
+  window.addEventListener('message', (event) => {
+    if (event.origin !== CHAT_ORIGIN || event.source !== frame.contentWindow) return;
+    if (event.data?.type === 'CHAT_READY') {
+      frame.contentWindow?.postMessage(
+        { type: 'SET_AUTH_TOKEN', token: userJwt },
+        CHAT_ORIGIN
+      );
+      sendOnlineUsers();
+      return;
+    }
+
+    if (
+      !['CHAT_JOIN', 'CHAT_LEAVE'].includes(event.data?.type)
+      || event.data.topicId !== topicId
+    ) return;
+
+    const user = usersById.get(event.data.userId);
+    if (!user) return;
+
+    onlineUsers = onlineUsers.filter((onlineUser) => onlineUser.id !== user.id);
+    if (event.data.type === 'CHAT_JOIN') onlineUsers.push(user);
+    sendOnlineUsers();
   });
 </script>
 ```
+
+Dans le client du chat, définissez `VITE_CHAT_PARENT_ORIGINS` avec l’origine exacte de l’application hôte (par exemple `https://forum.domain.local`). Les tokens fournis dans l’URL sont ignorés.
+Après connexion, le widget envoie `{ type: 'CHAT_JOIN', topicId, userId }`; lorsqu’il quitte via le bouton dédié, il envoie `{ type: 'CHAT_LEAVE', topicId, userId }`. L’hôte peut utiliser ces événements pour actualiser sa présence. Il reste responsable de détecter les fermetures de page ou autres déconnexions inattendues.
 
 #### Option B : Mode Headless (Client Socket.io personnalisé)
 Si votre application cliente dispose de sa propre UI (React, Vue, mobile, etc.), connectez-vous directement au gateway Socket.io :
@@ -222,6 +252,8 @@ npm --prefix client run dev
 ```
 - API & Serveur : `http://localhost:3000`
 - Swagger UI interactif : `http://localhost:3000/docs`
+
+Pour tester l’intégration sécurisée en local, ouvrez `http://localhost:5173/embed/host-preview.html` (ou remplacez le port par l’adresse Vite affichée). Entrez un salon et un JWT valide d’un participant; la page hôte transmettra le token et les utilisateurs en ligne par `postMessage`. Les onglets de démonstration synchronisent les arrivées et les départs du même salon pour actualiser la présence.
 
 ### 6. Build de Production
 ```bash

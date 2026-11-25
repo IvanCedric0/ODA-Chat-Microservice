@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hôte local du widget Chat</title>
+  </head>
+  <body>
+    <main class="host-page">
+      <header class="host-header">
+        <p class="eyebrow">ODA Chat · développement</p>
+        <h1>Hôte local de démonstration</h1>
+        <p>Transmettez le JWT et les participants au widget via postMessage, sans token dans son URL.</p>
+      </header>
+
+      <form id="host-form" class="host-form">
+        <label>
+          ID du salon
+          <input id="topic-id" type="number" min="1" value="1" required />
+        </label>
+        <label>
+          JWT d’un participant
+          <textarea id="auth-token" rows="3" autocomplete="off" spellcheck="false" required></textarea>
+        </label>
+        <label>
+          Participants en ligne (JSON)
+          <textarea id="online-users" rows="4" spellcheck="false">[{"id":10,"name":"Amira"},{"id":24,"name":"Noah"}]</textarea>
+        </label>
+        <p class="field-help">Les IDs doivent correspondre aux IDs numériques utilisés par le chat et par les JWT.</p>
+        <div class="host-actions">
+          <button type="submit">Lancer le chat</button>
+          <button id="update-presence" type="button" class="secondary" disabled>
+            Mettre à jour la présence
+          </button>
+        </div>
+      </form>
+
+      <p id="host-status" class="host-status" role="status" aria-live="polite">
+        Entrez un salon et un JWT valide pour démarrer.
+      </p>
+
+      <section id="chat-frame-wrap" class="chat-frame-wrap" hidden aria-label="Widget de chat">
+        <iframe id="chat-frame" title="Widget de chat"></iframe>
+      </section>
+    </main>
+    <script type="module" src="/src/hostPreview.js"></script>
+  </body>
+</html>

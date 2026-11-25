@@ -16,6 +16,10 @@ export const buildChatServer = (database: ChatPrisma = defaultPrisma) => {
   const app = Fastify({ logger: false });
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const publicDir = path.resolve(__dirname, '../public');
+  const jwtVerificationOptions = {
+    ...(env.jwtIssuer ? { issuer: env.jwtIssuer } : {}),
+    ...(env.jwtAudience ? { audience: env.jwtAudience } : {}),
+  };
 
   const authenticateRequest = async (request: any, reply: any) => {
     const authorization = request.headers.authorization;
@@ -24,7 +28,7 @@ export const buildChatServer = (database: ChatPrisma = defaultPrisma) => {
     }
 
     try {
-      const payload = jwt.verify(authorization.slice(7), env.jwtSecret) as {
+      const payload = jwt.verify(authorization.slice(7), env.jwtSecret, jwtVerificationOptions) as {
         sub?: string;
         userId?: number;
       };
@@ -69,7 +73,9 @@ export const buildChatServer = (database: ChatPrisma = defaultPrisma) => {
 
   app.get('/health', async () => ({ status: 'ok' }));
 
-  app.post('/api/v1/topics', async (request, reply) => {
+  app.post('/api/v1/topics', {
+    preHandler: [authenticateRequest],
+  }, async (request, reply) => {
     const body = request.body as {
       service_name?: string;
       title?: string;
@@ -95,10 +101,12 @@ export const buildChatServer = (database: ChatPrisma = defaultPrisma) => {
     });
   });
 
-  app.post('/api/v1/topics/:id/participants', async (request, reply) => {
+  app.post('/api/v1/topics/:id/participants', {
+    preHandler: [authenticateRequest, requireTopicParticipant],
+  }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const { user_ids } = request.body as { user_ids?: number[] };
-    if (!Array.isArray(user_ids)) {
+    if (!Array.isArray(user_ids) || user_ids.some((userId) => !Number.isInteger(userId) || userId <= 0)) {
       return reply.code(400).send({ error: 'Invalid participant payload' });
     }
     await database.topicParticipant.createMany({
@@ -108,11 +116,18 @@ export const buildChatServer = (database: ChatPrisma = defaultPrisma) => {
     return reply.code(204).send();
   });
 
-  app.delete('/api/v1/topics/:id/participants/:uid', async (request) => {
+  app.delete('/api/v1/topics/:id/participants/:uid', {
+    preHandler: [authenticateRequest, requireTopicParticipant],
+  }, async (request, reply) => {
     const { id, uid } = request.params as { id: string; uid: string };
+    const topicId = Number(id);
+    const userId = Number(uid);
+    if (!Number.isInteger(topicId) || topicId <= 0 || !Number.isInteger(userId) || userId <= 0) {
+      return;
+    }
     await database.topicParticipant.delete({
       where: {
-        topicId_userId: { topicId: Number(id), userId: Number(uid) },
+        topicId_userId: { topicId, userId },
       },
     });
     return { deleted: true };
@@ -180,7 +195,7 @@ export const buildChatServer = (database: ChatPrisma = defaultPrisma) => {
     if (typeof token !== 'string') return next(new Error('Authentication required'));
 
     try {
-      const payload = jwt.verify(token, env.jwtSecret) as {
+      const payload = jwt.verify(token, env.jwtSecret, jwtVerificationOptions) as {
         sub?: string;
         userId?: number;
       };

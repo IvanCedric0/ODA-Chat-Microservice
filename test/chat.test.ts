@@ -114,6 +114,16 @@ describe('historique REST', () => {
     expect(response.statusCode).toBe(401);
   });
 
+  it('refuse un JWT expiré', async () => {
+    const token = jwt.sign({ userId: 10, sub: '10' }, 'test-secret', { expiresIn: -1 });
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/v1/topics/42/messages',
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(response.statusCode).toBe(401);
+  });
+
   it('retourne l’historique à un participant', async () => {
     const token = jwt.sign({ userId: 10, sub: '10' }, 'test-secret');
     const response = await app.inject({
@@ -142,9 +152,57 @@ describe('historique REST', () => {
     });
     expect(response.statusCode).toBe(403);
   });
+
+  it('protège la création de salon par JWT', async () => {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/topics',
+      payload: {
+        service_name: 'forum',
+        title: 'Test',
+        participant_ids: [10],
+      },
+    });
+    expect(response.statusCode).toBe(401);
+  });
+
+  it('protège l’ajout de participants', async () => {
+    const token = jwt.sign({ userId: 10, sub: '10' }, 'test-secret');
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/topics/42/participants',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { user_ids: [11] },
+    });
+    expect(response.statusCode).toBe(204);
+  });
+
+  it('refuse l’ajout de participants invalides', async () => {
+    const token = jwt.sign({ userId: 10, sub: '10' }, 'test-secret');
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/topics/42/participants',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { user_ids: [-1] },
+    });
+    expect(response.statusCode).toBe(400);
+  });
 });
 
 describe('messages Socket.io', () => {
+  it('rejette une connexion Socket.io sans JWT', async () => {
+    await expect(
+      new Promise<void>((resolve) => {
+        const socket = createClientSocket(baseUrl, {
+          transports: ['websocket'],
+          auth: { topicId: 42 },
+          reconnection: false,
+        });
+        sockets.push(socket);
+        socket.once('connect_error', () => resolve());
+      }),
+    ).resolves.toBeUndefined();
+  });
   it('rejette un utilisateur non participant', async () => {
     const token = jwt.sign({ userId: 999, sub: '999' }, 'test-secret');
     await expect(
