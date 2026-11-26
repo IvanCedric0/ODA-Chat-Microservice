@@ -7,7 +7,8 @@
     "test": "tsx --test 'src/tests/**/*.test.ts'",
     "dev": "tsx watch src/server.ts",
     "build": "tsc && npm --prefix client run build",
-    "start": "node dist/server.js"
+    "start": "node dist/src/server.js",
+    "tokens": "tsx src/scripts/dev-tokens.ts"
   },
   "keywords": [],
   "author": "",
@@ -31,6 +32,7 @@
     "@types/node": "^26.6.6",
     "@types/pg": "^8.23.1",
     "prisma": "^7.10.1",
+    "socket.io-client": "^4.8.4",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
   }

@@ -15,7 +15,7 @@ export type ChatServer = Server<
     SocketData
 >;
 
-type BufferedRoomEvent =
+export type BufferedRoomEvent =
     | { type: "new_message"; payload: MessageDTO }
     | { type: "message_deleted"; payload: { topicId: number; messageId: number } };
 
@@ -86,7 +86,7 @@ function emitToTopic(io: ChatServer, roomName: string, event: BufferedRoomEvent)
     }
 }
 
-function mergeHistoryAndBuffer(
+export function mergeHistoryAndBuffer(
     history: MessageDTO[],
     bufferedEvents: BufferedRoomEvent[]
 ): MessageDTO[] {
