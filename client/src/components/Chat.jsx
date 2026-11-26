@@ -206,11 +206,23 @@ const Chat = () => {
     socketRef.current = socket;
 
     socket.on('connect', () => {
-      if (isMounted) {
-        setConnectionState('connected');
-        setConnectionError('');
-        notifyHostPresence('CHAT_JOIN');
-      }
+      if (!isMounted) return;
+      setConnectionState('connecting');
+      setConnectionError('');
+      socket.emit('join_topic', { topicId });
+    });
+    socket.on('room_joined', ({ topicId: joinedTopicId, history }) => {
+      if (!isMounted || !socket.connected || joinedTopicId !== topicId) return;
+
+      const joinedMessages = history.map(mapMessageDTO);
+      setMessages((previous) => {
+        const unique = new Map(previous.map((message) => [message.id, message]));
+        joinedMessages.forEach((message) => unique.set(message.id, message));
+        return Array.from(unique.values()).sort((a, b) => a.id - b.id);
+      });
+      setConnectionState('connected');
+      setConnectionError('');
+      notifyHostPresence('CHAT_JOIN');
     });
     socket.on('disconnect', (reason) => {
       if (!isMounted) return;
