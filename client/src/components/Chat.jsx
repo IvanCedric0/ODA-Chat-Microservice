@@ -36,8 +36,9 @@ const Chat = () => {
   const parentOrigin = window.parent === window ? '' : getParentOrigin(document.referrer);
   const isAllowedParentOrigin = allowedParentOrigins.includes(parentOrigin);
   const [authToken, setAuthToken] = useState(null);
+  const authTokenRef = useRef(null);
   const authPayload = authToken ? decodePayload(authToken) : {};
-  const authUserId = authPayload.userId ?? Number(authPayload.sub);
+  const authUserId = Number(authPayload.sub ?? authPayload.userId);
 
   const [messages, setMessages] = useState([]);
   const [onlineUsers, setOnlineUsers] = useState([]);
@@ -107,12 +108,17 @@ const Chat = () => {
       );
     }
 
-    if (!hasValidTopic || !isAllowedParentOrigin) return undefined;
+    if (!hasValidTopic || window.parent === window || allowedParentOrigins.length === 0) {
+      return undefined;
+    }
 
     const handleHostMessage = (event) => {
       if (isTrustedAuthMessage(event, allowedParentOrigins, window.parent)) {
         hostOriginRef.current = event.origin;
-        setAuthToken(event.data.token);
+        const { token } = event.data;
+        if (token === authTokenRef.current) return;
+        authTokenRef.current = token;
+        setAuthToken(token);
         setAuthError('');
         setIsLoading(true);
         setError('');
@@ -129,10 +135,10 @@ const Chat = () => {
     };
 
     window.addEventListener('message', handleHostMessage);
-    window.parent.postMessage({ type: 'CHAT_READY' }, parentOrigin);
+    window.parent.postMessage({ type: 'CHAT_READY' }, parentOrigin || '*');
 
     return () => window.removeEventListener('message', handleHostMessage);
-  }, [hasValidTopic, isAllowedParentOrigin, parentOrigin]);
+  }, [hasValidTopic, parentOrigin]);
 
   useEffect(() => {
     if (!hasValidTopic || !authToken) return undefined;
