@@ -242,15 +242,16 @@ const Chat = () => {
       setMessages((previous) => {
         if (previous.some((item) => item.id === message.id)) return previous;
         return [...previous, mapMessageDTO(message)];
-      });
+          });
     });
-    socket.on('message_deleted', ({ message_id }) => {
+    socket.on('message_deleted', ({ topicId: deletedTopicId, messageId }) => {
+      if (deletedTopicId !== topicId) return;
       if (isMounted) {
-        const timer = pendingDeleteTimeoutsRef.current.get(message_id);
+        const timer = pendingDeleteTimeoutsRef.current.get(messageId);
         if (timer !== undefined) window.clearTimeout(timer);
-        pendingDeleteTimeoutsRef.current.delete(message_id);
-        setPendingDeleteIds((previous) => previous.filter((id) => id !== message_id));
-        setMessages((previous) => previous.filter((message) => message.id !== message_id));
+        pendingDeleteTimeoutsRef.current.delete(messageId);
+        setPendingDeleteIds((previous) => previous.filter((id) => id !== messageId));
+        setMessages((previous) => previous.filter((message) => message.id !== messageId));
         setDeleteError('');
       }
     });
@@ -285,7 +286,7 @@ const Chat = () => {
 
   const handleSendMessage = (messageText) => {
     if (!messageText.trim()) return { ok: false, error: 'Le message est vide.' };
-    return sendChatMessage(socketRef.current, messageText.trim());
+    return sendChatMessage(socketRef.current, messageText.trim(), initialTopicId, authUserId);
   };
 
   const handleDeleteMessage = (messageId) => {
@@ -307,7 +308,7 @@ const Chat = () => {
       setDeleteError('La suppression n’a pas été confirmée. Vérifiez la connexion et réessayez.');
     }, 8000);
     pendingDeleteTimeoutsRef.current.set(messageId, timer);
-    socket.emit('delete_message', { message_id: messageId });
+    socket.emit('delete_message', { topicId: initialTopicId, messageId });
   };
 
   const handleLeave = () => {

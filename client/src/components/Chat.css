@@ -102,7 +102,11 @@
 }
 
 .users-section {
+  display: flex;
+  flex-direction: column;
   width: 280px;
+  min-height: 0;
+  overflow: hidden;
   border-left: 1px solid #e1e5e9;
   background-color: #ffffff;
 }
@@ -299,6 +303,7 @@
 
 
 .user-list {
+  flex: 1;
   padding: 1.5rem;
   min-height: 0;
   overflow-y: auto;
@@ -487,7 +492,9 @@
   }
 
   .user-list {
+    flex: 0 0 auto;
     padding: 0.5rem 1rem;
+    overflow: visible;
   }
 
   .user-list h3 {
