@@ -97,7 +97,10 @@ function mergeHistoryAndBuffer(
 
     for (const event of bufferedEvents) {
         if (event.type === "new_message") {
-            byId.set(event.payload.id, event.payload);
+            // Never overwrite an existing DB history row (e.g. already soft-deleted via REST)
+            if (!byId.has(event.payload.id)) {
+                byId.set(event.payload.id, event.payload);
+            }
         } else {
             const existing = byId.get(event.payload.messageId);
             if (existing) {
@@ -111,6 +114,17 @@ function mergeHistoryAndBuffer(
     }
 
     return Array.from(byId.values()).sort((a, b) => b.id - a.id);
+}
+
+export function emitMessageDeleted(
+    io: ChatServer,
+    topicId: number,
+    messageId: number
+): void {
+    emitToTopic(io, `topic_${topicId}`, {
+        type: "message_deleted",
+        payload: { topicId, messageId },
+    });
 }
 
 export async function evictUserFromTopic(
@@ -239,15 +253,10 @@ export function registerChathandlers(io: ChatServer) {
                 }
 
                 const deletedMessageDto = await messageService.deleteMessage(messageId, userId);
-                const roomName = `topic_${deletedMessageDto.topicId}`;
 
-                emitToTopic(io, roomName, {
-                    type: "message_deleted",
-                    payload: {
-                        topicId: deletedMessageDto.topicId,
-                        messageId: deletedMessageDto.id,
-                    },
-                });
+                if (!messageService.onMessageDeleted) {
+                    emitMessageDeleted(io, deletedMessageDto.topicId, deletedMessageDto.id);
+                }
             } catch (err: any) {
                 socket.emit("error_event", {
                     code: err?.message || "DELETE_MESSAGE_ERROR",

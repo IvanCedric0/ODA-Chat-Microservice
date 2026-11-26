@@ -12,8 +12,9 @@ import { healthRoutes } from "./routes/health.routes.js";
 import { topicRoutes } from "./routes/topics.routes.js";
 import { messageRoutes } from "./routes/messages.routes.js";
 import { socketAuthMiddleware } from "./sockets/socket.auth.js";
-import { evictUserFromTopic, registerChathandlers, type ChatServer } from "./sockets/socket.handler.js";
+import { emitMessageDeleted, evictUserFromTopic, registerChathandlers, type ChatServer } from "./sockets/socket.handler.js";
 import { topicService } from "./services/topic.service.js";
+import { messageService } from "./services/message.service.js";
 
 function toCorsOriginList(origins: readonly string[]): (string | RegExp)[] {
     return origins.map((origin) => {
@@ -99,9 +100,12 @@ export async function buildServer(options: { logger?: boolean } = {}) {
 
     topicService.onParticipantRemoved = (topicId, userId) =>
         evictUserFromTopic(io, topicId, userId);
+    messageService.onMessageDeleted = (topicId, messageId) =>
+        emitMessageDeleted(io, topicId, messageId);
 
     fastify.addHook("onClose", async () => {
         topicService.onParticipantRemoved = undefined;
+        messageService.onMessageDeleted = undefined;
         await io.close();
     });
 

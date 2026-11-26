@@ -4,6 +4,8 @@ import { topicRepository } from "../repositories/topic.repo.js";
 import { toMessageDTO } from "./mapper.js";
 
 export class MessageService {
+    public onMessageDeleted?: ((topicId: number, messageId: number) => Promise<void> | void) | undefined;
+
     constructor(private messageRepo = messageRepository, private topicRepo=topicRepository){}
     
     private async verifyUserTopicParticipation(userId: number, topicId: number){
@@ -61,8 +63,11 @@ export class MessageService {
         }
 
         const updatedMessage  = await this.messageRepo.softDeleteMessage(messageId)
+        const dto = toMessageDTO(updatedMessage)
 
-        return toMessageDTO(updatedMessage)
+        await this.onMessageDeleted?.(dto.topicId, dto.id)
+
+        return dto
 
     }
 }
