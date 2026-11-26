@@ -14,6 +14,9 @@ const createSocket = () => {
     off(event, listener) {
       if (listeners.get(event) === listener) listeners.delete(event);
     },
+    listenerCount(event) {
+      return listeners.has(event) ? 1 : 0;
+    },
     emit(event, payload) {
       emitted.push({ event, payload });
     },
@@ -56,4 +59,27 @@ test('confirms a send only when its matching new_message event arrives', async (
   });
 
   assert.deepEqual(await resultPromise, { ok: true });
+});
+
+test('waits ten seconds before failing and removes listeners after timeout', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+
+  const socket = createSocket();
+  const resultPromise = sendChatMessage(socket, 'Bonjour', 12, 34);
+  let settled = false;
+  resultPromise.then(() => {
+    settled = true;
+  });
+
+  t.mock.timers.tick(9999);
+  await Promise.resolve();
+  assert.equal(settled, false);
+
+  t.mock.timers.tick(1);
+  assert.deepEqual(await resultPromise, {
+    ok: false,
+    error: 'Le serveur ne confirme pas l’envoi. Réessayez.',
+  });
+  assert.equal(socket.listenerCount('new_message'), 0);
+  assert.equal(socket.listenerCount('error_event'), 0);
 });
