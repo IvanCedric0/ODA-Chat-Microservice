@@ -4,8 +4,10 @@ node_modules/
 .pnp.js
 
 # Production & Build outputs
+dist/
 dist-ssr/
 build/
+/public/
 *.tsbuildinfo
 
 # Prisma
