@@ -3,7 +3,25 @@ import { TopicRepository, topicRepository } from "../repositories/topic.repo.js"
 import { toTopicDTO } from "./mapper.js";
 
 export class TopicService {
+    public onParticipantRemoved?: ((topicId: number, userId: number) => Promise<void> | void) | undefined;
+
     constructor(private repo: TopicRepository = topicRepository){}
+
+    async isParticipant(topicId: number, userId: number): Promise<boolean> {
+        return this.repo.isParticipant(topicId, userId)
+    }
+
+    async ensureParticipant(topicId: number, userId: number): Promise<void> {
+        const topic = await this.repo.findTopicById(topicId)
+        if (!topic) {
+            throw new Error('TOPIC_NOT_FOUND')
+        }
+
+        const isMember = await this.repo.isParticipant(topicId, userId)
+        if (!isMember) {
+            throw new Error('FORBIDDEN_NOT_PARTICIPANT')
+        }
+    }
 
     async  createTopic(body:CreateTopicInput): Promise<TopicDTO> {
         
@@ -52,6 +70,7 @@ export class TopicService {
         }
 
         await this.repo.deleteParticipant(topicId, userId)
+        await this.onParticipantRemoved?.(topicId, userId)
 
         const updatedTopic = await this.repo.findTopicByIdWithParticipants(topicId)
         if (!updatedTopic) {
