@@ -15,7 +15,7 @@ const MessageList = ({
 }) => {
   const userNames = new Map(users.map((user) => [user.id, user.name]));
 
-  // Format timestamp for display
+  //display
   const formatTime = (timestamp) => {
     const date = new Date(timestamp);
     if (Number.isNaN(date.getTime())) return '';

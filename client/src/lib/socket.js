@@ -52,7 +52,7 @@ export const sendChatMessage = (socket, content, topicId, senderId) => {
     socket.on('error_event', onError);
     timeoutId = setTimeout(() => {
       finish({ ok: false, error: 'Le serveur ne confirme pas l’envoi. Réessayez.' });
-    });
+    }, 10000);
     socket.emit('send_message', { topicId, content });
   });
 };

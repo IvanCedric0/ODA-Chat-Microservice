@@ -36,8 +36,9 @@ const Chat = () => {
   const parentOrigin = window.parent === window ? '' : getParentOrigin(document.referrer);
   const isAllowedParentOrigin = allowedParentOrigins.includes(parentOrigin);
   const [authToken, setAuthToken] = useState(null);
+  const authTokenRef = useRef(null);
   const authPayload = authToken ? decodePayload(authToken) : {};
-  const authUserId = authPayload.userId ?? Number(authPayload.sub);
+  const authUserId = Number(authPayload.sub ?? authPayload.userId);
 
   const [messages, setMessages] = useState([]);
   const [onlineUsers, setOnlineUsers] = useState([]);
@@ -60,6 +61,7 @@ const Chat = () => {
 
   const messageListRef = useRef(null);
   const socketRef = useRef(null);
+  const isJoiningRoomRef = useRef(false);
   const hostOriginRef = useRef(null);
   const retryHistoryRef = useRef(null);
   const pendingDeleteTimeoutsRef = useRef(new Map());
@@ -107,12 +109,17 @@ const Chat = () => {
       );
     }
 
-    if (!hasValidTopic || !isAllowedParentOrigin) return undefined;
+    if (!hasValidTopic || window.parent === window || allowedParentOrigins.length === 0) {
+      return undefined;
+    }
 
     const handleHostMessage = (event) => {
       if (isTrustedAuthMessage(event, allowedParentOrigins, window.parent)) {
         hostOriginRef.current = event.origin;
-        setAuthToken(event.data.token);
+        const { token } = event.data;
+        if (token === authTokenRef.current) return;
+        authTokenRef.current = token;
+        setAuthToken(token);
         setAuthError('');
         setIsLoading(true);
         setError('');
@@ -129,10 +136,10 @@ const Chat = () => {
     };
 
     window.addEventListener('message', handleHostMessage);
-    window.parent.postMessage({ type: 'CHAT_READY' }, parentOrigin);
+    window.parent.postMessage({ type: 'CHAT_READY' }, parentOrigin || '*');
 
     return () => window.removeEventListener('message', handleHostMessage);
-  }, [hasValidTopic, isAllowedParentOrigin, parentOrigin]);
+  }, [hasValidTopic, parentOrigin]);
 
   useEffect(() => {
     if (!hasValidTopic || !authToken) return undefined;
@@ -206,14 +213,36 @@ const Chat = () => {
     socketRef.current = socket;
 
     socket.on('connect', () => {
-      if (isMounted) {
-        setConnectionState('connected');
-        setConnectionError('');
-        notifyHostPresence('CHAT_JOIN');
-      }
+      if (!isMounted) return;
+      setConnectionState('connecting');
+      setConnectionError('');
+      isJoiningRoomRef.current = true;
+      socket.emit('join_topic', { topicId });
+    });
+    socket.on('room_joined', ({ topicId: joinedTopicId, history }) => {
+      if (!isMounted || !socket.connected || joinedTopicId !== topicId) return;
+
+      isJoiningRoomRef.current = false;
+      const joinedMessages = history.map(mapMessageDTO);
+      setMessages((previous) => {
+        const unique = new Map(previous.map((message) => [message.id, message]));
+        joinedMessages.forEach((message) => unique.set(message.id, message));
+        return Array.from(unique.values()).sort((a, b) => a.id - b.id);
+      });
+      setConnectionState('connected');
+      setConnectionError('');
+      notifyHostPresence('CHAT_JOIN');
+    });
+    socket.on('error_event', ({ message }) => {
+      if (!isMounted || !isJoiningRoomRef.current) return;
+
+      isJoiningRoomRef.current = false;
+      setConnectionError(message || 'Impossible de rejoindre le salon.');
+      setConnectionState('disconnected');
     });
     socket.on('disconnect', (reason) => {
       if (!isMounted) return;
+      isJoiningRoomRef.current = false;
       if (isLeavingRef.current) {
         setConnectionState('disconnected');
       } else {
@@ -222,6 +251,7 @@ const Chat = () => {
     });
     socket.on('connect_error', (socketError) => {
       if (isMounted) {
+        isJoiningRoomRef.current = false;
         setConnectionState('reconnecting');
         setConnectionError(socketError.message || 'Connexion au chat impossible.');
       }
@@ -231,6 +261,7 @@ const Chat = () => {
     };
     const onReconnectFailed = () => {
       if (isMounted) {
+        isJoiningRoomRef.current = false;
         setConnectionState('disconnected');
         setConnectionError('Reconnexion impossible. Réessayez manuellement.');
       }
@@ -260,6 +291,7 @@ const Chat = () => {
 
     return () => {
       isMounted = false;
+      isJoiningRoomRef.current = false;
       loadOlderRef.current = null;
       retryHistoryRef.current = null;
       pendingDeleteTimeouts.forEach((timer) => window.clearTimeout(timer));
@@ -323,10 +355,16 @@ const Chat = () => {
   };
 
   const handleReconnect = () => {
-    if (!socketRef.current || connectionState === 'reconnecting') return;
+    const socket = socketRef.current;
+    if (!socket || connectionState === 'reconnecting') return;
     setConnectionError('');
     setConnectionState('connecting');
-    socketRef.current.connect();
+    isJoiningRoomRef.current = true;
+    if (socket.connected) {
+      socket.emit('join_topic', { topicId: initialTopicId });
+    } else {
+      socket.connect();
+    }
   };
 
   const isConnected = connectionState === 'connected';
