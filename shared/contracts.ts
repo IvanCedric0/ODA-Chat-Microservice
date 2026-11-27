@@ -45,3 +45,14 @@ export interface FindMessageQuery{
     limit?: number;
     beforeId?: bigint | number | undefined;
 }
+
+export interface AuthenticatedUser {
+  userId: string;      // payload.sub (UUID)
+  tenantId: string;    // payload.tid (UUID)
+  tenantSlug?: string; // payload.tenant
+  sessionId?: string;  // payload.sid (UUID, utile pour révocation)
+  roles: string[];
+  perms: string[];
+  membership?: string; // 'ACADEMICIAN' | 'VISITOR'
+  isPlatformAdmin: boolean; // Boolean(payload.pfa)
+}

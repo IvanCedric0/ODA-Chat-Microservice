@@ -3,7 +3,9 @@ import { verifyJwtToken } from "../services/auth.service.js"
 import type { ServerToClientEvents, ClientToServerEvents } from "../../shared/contracts.js";
 
 export interface SocketData {
-    userId: number
+    userId: string,
+    tenantId: string,
+    sessionId?: string
 }
 
 export type AuthenticatedSocket = Socket<
@@ -13,7 +15,7 @@ export type AuthenticatedSocket = Socket<
     SocketData
 >
 
-export function socketAuthMiddleware(
+export async function socketAuthMiddleware(
     socket: AuthenticatedSocket,
     next: (err?: Error) => void
 ) {
@@ -23,11 +25,20 @@ export function socketAuthMiddleware(
         return next(new Error('Unauthorized: Missing token'))
     }
 
-    const userId = verifyJwtToken(token)
-    if (!userId) {
+    try {
+        const user = await verifyJwtToken(token)
+
+        if (!user) return next(new Error('Unauthorized: Invalid token'))
+
+        socket.data.userId = user.userId
+        socket.data.tenantId = user.tenantId
+        if (user.sessionId) socket.data.sessionId = user.sessionId
+
+        return next()
+    } catch (err: unknown) {
+        if (err instanceof Error && err.message === 'FORBIDDEN_VISITOR') {
+            return next(new Error('Forbidden: VISITOR account'))
+        }
         return next(new Error('Unauthorized: Invalid token'))
     }
-
-    socket.data.userId = userId
-    return next()
 }
