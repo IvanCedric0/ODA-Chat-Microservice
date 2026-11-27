@@ -1,3 +1,6 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import jwt from 'jsonwebtoken';
@@ -135,6 +138,10 @@ describe('Étape 5 : Tests d\'Intégration API REST & Socket.io', () => {
     let createdTopicId: number | null = null;
     let restMessageId: number | null = null;
     const activeSockets: TypedClientSocket[] = [];
+    const publicDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../public');
+    const embedIndexPath = path.join(publicDir, 'index.html');
+    let createdPublicDir = false;
+    let createdIndexFixture = false;
 
     before(async () => {
       try {
@@ -144,6 +151,16 @@ describe('Étape 5 : Tests d\'Intégration API REST & Socket.io', () => {
           `Impossible de se connecter à PostgreSQL (${err.message}). ` +
           `Assurez-vous que Docker tourne bien avec "docker compose up -d".`
         );
+      }
+
+      // Sur un clone tout neuf, /public/ est ignoré par Git et le client n'est pas encore buildé
+      if (!fs.existsSync(publicDir)) {
+        fs.mkdirSync(publicDir, { recursive: true });
+        createdPublicDir = true;
+      }
+      if (!fs.existsSync(embedIndexPath)) {
+        fs.writeFileSync(embedIndexPath, '<!doctype html><html><body>Chat Widget Fixture</body></html>');
+        createdIndexFixture = true;
       }
 
       serverContext = await buildServer({ logger: false });
@@ -163,6 +180,12 @@ describe('Étape 5 : Tests d\'Intégration API REST & Socket.io', () => {
       }
       if (serverContext) {
         await serverContext.fastify.close();
+      }
+      if (createdIndexFixture && fs.existsSync(embedIndexPath)) {
+        fs.unlinkSync(embedIndexPath);
+      }
+      if (createdPublicDir && fs.existsSync(publicDir)) {
+        fs.rmSync(publicDir, { recursive: true, force: true });
       }
       await prisma.$disconnect();
     });
