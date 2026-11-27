@@ -13,8 +13,15 @@ function getOptionalEnv(key: string): string | undefined {
     return value ? value : undefined
 }
 
+function normalizeBasePath(raw: string): string {
+    const trimmed = raw.trim().replace(/\/+$/, '')
+    if (!trimmed || trimmed === '/') return ''
+    return trimmed.startsWith('/') ? trimmed : `/${trimmed}`
+}
+
 const nodeEnv = getEnv('NODE_ENV', 'development')
-const rawOrigins = getEnv('ALLOWED_ORIGINS', 'http://localhost:5173')
+const rawOrigins = getEnv('ALLOWED_ORIGINS', 'http://localhost,http://localhost:5173')
+const basePath = normalizeBasePath(getEnv('BASE_PATH', ''))
 const jwtJwksUrl = getOptionalEnv('JWT_JWKS_URL')
 const jwtSecret = getOptionalEnv('JWT_SECRET')
 
@@ -30,6 +37,7 @@ export const env = {
     nodeEnv,
     port: getEnv('PORT', '3000'),
     host: getEnv('HOST', '0.0.0.0'),
+    basePath,
     databaseUrl: getEnv('DATABASE_URL'),
     jwtSecret,
     serviceKey: getEnv('SERVICE_API_KEY'),

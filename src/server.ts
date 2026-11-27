@@ -29,6 +29,7 @@ export async function buildServer(options: { logger?: boolean } = {}) {
         logger: options.logger ?? true,
     });
 
+    const base = env.basePath;
     const corsOrigins = toCorsOriginList(env.allowedOrigins);
     const frameAncestors = ["'self'", ...env.allowedOrigins].join(" ");
     const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -52,6 +53,7 @@ export async function buildServer(options: { logger?: boolean } = {}) {
                 title: "Chat Microservice",
                 version: "1.0.0",
             },
+            servers: [{ url: base || "/" }],
             components: {
                 securitySchemes: {
                     bearerAuth: {
@@ -69,11 +71,13 @@ export async function buildServer(options: { logger?: boolean } = {}) {
         },
     });
 
-    await fastify.register(fastifySwaggerUi, { routePrefix: "/docs" });
+    await fastify.register(fastifySwaggerUi, { routePrefix: `${base}/docs` });
 
     // Protection contre le Clickjacking sur le widget /embed/
+    const embedPrefix = `${base}/embed`;
     fastify.addHook("onSend", async (request, reply, payload) => {
-        if (request.url.startsWith("/embed")) {
+        const pathname = request.url.split("?")[0] ?? request.url;
+        if (pathname === embedPrefix || pathname.startsWith(`${embedPrefix}/`)) {
             reply.header("Content-Security-Policy", `frame-ancestors ${frameAncestors}`);
         }
         return payload;
@@ -81,14 +85,20 @@ export async function buildServer(options: { logger?: boolean } = {}) {
 
     await fastify.register(fastifyStatic, {
         root: publicDir,
-        prefix: "/embed/",
+        prefix: `${base}/embed/`,
     });
 
-    await fastify.register(healthRoutes);
-    await fastify.register(topicRoutes, { prefix: "/api/v1/topics" });
-    await fastify.register(messageRoutes, { prefix: "/api/v1" });
+    if (base) {
+        await fastify.register(healthRoutes, { prefix: base });
+        await fastify.register(healthRoutes, { hideFromDocs: true });
+    } else {
+        await fastify.register(healthRoutes);
+    }
+    await fastify.register(topicRoutes, { prefix: `${base}/api/v1/topics` });
+    await fastify.register(messageRoutes, { prefix: `${base}/api/v1` });
 
     const io: ChatServer = new Server(fastify.server, {
+        path: `${base}/socket.io`,
         cors: {
             origin: corsOrigins,
             credentials: true,
