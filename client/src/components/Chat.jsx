@@ -40,6 +40,9 @@ const Chat = () => {
   const authPayload = authToken ? decodePayload(authToken) : {};
   const authUserId = Number(authPayload.sub ?? authPayload.userId);
 
+  const [topicInfo, setTopicInfo] = useState(null);
+  const [onlineUsersWidth, setOnlineUsersWidth] = useState(280);
+  const [sidebarWidthLimit, setSidebarWidthLimit] = useState(480);
   const [messages, setMessages] = useState([]);
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [hasPresenceData, setHasPresenceData] = useState(false);
@@ -47,6 +50,7 @@ const Chat = () => {
   const [connectionError, setConnectionError] = useState('');
   const [deleteError, setDeleteError] = useState('');
   const [pendingDeleteIds, setPendingDeleteIds] = useState([]);
+  const [deleteConfirmationId, setDeleteConfirmationId] = useState(null);
   const [hasLeft, setHasLeft] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
@@ -60,6 +64,8 @@ const Chat = () => {
   );
 
   const messageListRef = useRef(null);
+  const chatBodyRef = useRef(null);
+  const sidebarResizeRef = useRef(null);
   const socketRef = useRef(null);
   const isJoiningRoomRef = useRef(false);
   const hostOriginRef = useRef(null);
@@ -71,6 +77,42 @@ const Chat = () => {
   const isLoadingOlderRef = useRef(false);
   const isNearBottomRef = useRef(true);
   const scrollRestoreRef = useRef(null);
+  const previousPresenceRef = useRef(null);
+  const systemMessageSequenceRef = useRef(0);
+
+  const createSystemMessage = useCallback((text) => {
+    const timestamp = new Date().toISOString();
+    systemMessageSequenceRef.current += 1;
+    return {
+      id: (Date.now() * 1000) + systemMessageSequenceRef.current,
+      topicId: initialTopicId,
+      senderId: null,
+      content: text,
+      isDeleted: false,
+      createdAt: timestamp,
+      text,
+      userId: null,
+      timestamp,
+      isSystem: true,
+    };
+  }, [initialTopicId]);
+
+  useEffect(() => {
+    const chatBody = chatBodyRef.current;
+    if (!chatBody) return undefined;
+
+    const updateSidebarWidthLimit = () => {
+      const maxWidth = Math.min(480, Math.max(180, chatBody.clientWidth - 180));
+      setSidebarWidthLimit(maxWidth);
+      setOnlineUsersWidth((width) => Math.min(width, maxWidth));
+    };
+
+    const observer = new ResizeObserver(updateSidebarWidthLimit);
+    observer.observe(chatBody);
+    updateSidebarWidthLimit();
+
+    return () => observer.disconnect();
+  }, []);
 
   const notifyHostPresence = useCallback((type) => {
     if (
@@ -127,9 +169,50 @@ const Chat = () => {
         return;
       }
 
+      const topicInfoMessage = event.data;
+      if (
+        event.source === window.parent
+        && allowedParentOrigins.includes(event.origin)
+        && topicInfoMessage?.type === 'SET_TOPIC_INFO'
+        && topicInfoMessage.topicId === initialTopicId
+        && typeof topicInfoMessage.title === 'string'
+        && topicInfoMessage.title.trim().length > 0
+        && topicInfoMessage.title.trim().length <= 255
+      ) {
+        hostOriginRef.current = event.origin;
+        setTopicInfo({
+          title: topicInfoMessage.title.trim(),
+        });
+        return;
+      }
+
       const users = getTrustedOnlineUsers(event, allowedParentOrigins, window.parent);
       if (users !== null) {
         hostOriginRef.current = event.origin;
+        const previousUsers = previousPresenceRef.current;
+        if (previousUsers !== null) {
+          const previousById = new Map(previousUsers.map((user) => [user.id, user]));
+          const currentById = new Map(users.map((user) => [user.id, user]));
+          const systemMessages = [];
+
+          users.forEach((user) => {
+            if (!previousById.has(user.id)) {
+              systemMessages.push(createSystemMessage(`${user.name} a rejoint le salon.`));
+            }
+          });
+          previousUsers.forEach((user) => {
+            if (!currentById.has(user.id)) {
+              systemMessages.push(createSystemMessage(`${user.name} a quitté le salon.`));
+            }
+          });
+
+          if (systemMessages.length > 0) {
+            setMessages((previous) => (
+              [...previous, ...systemMessages].sort((a, b) => a.id - b.id)
+            ));
+          }
+        }
+        previousPresenceRef.current = users;
         setOnlineUsers(users);
         setHasPresenceData(true);
       }
@@ -139,7 +222,7 @@ const Chat = () => {
     window.parent.postMessage({ type: 'CHAT_READY' }, parentOrigin || '*');
 
     return () => window.removeEventListener('message', handleHostMessage);
-  }, [hasValidTopic, parentOrigin]);
+  }, [hasValidTopic, parentOrigin, createSystemMessage, initialTopicId]);
 
   useEffect(() => {
     if (!hasValidTopic || !authToken) return undefined;
@@ -316,6 +399,49 @@ const Chat = () => {
     loadOlderRef.current?.();
   };
 
+  const getSidebarWidthLimit = () => {
+    return sidebarWidthLimit;
+  };
+
+  const handleSidebarResizeStart = (event) => {
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    sidebarResizeRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startWidth: onlineUsersWidth,
+    };
+  };
+
+  const handleSidebarResize = (event) => {
+    const drag = sidebarResizeRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    const nextWidth = drag.startWidth + drag.startX - event.clientX;
+    setOnlineUsersWidth(Math.max(180, Math.min(getSidebarWidthLimit(), nextWidth)));
+  };
+
+  const handleSidebarResizeEnd = (event) => {
+    if (sidebarResizeRef.current?.pointerId === event.pointerId) {
+      sidebarResizeRef.current = null;
+    }
+  };
+
+  const handleSidebarResizeKeyDown = (event) => {
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+      event.preventDefault();
+      const direction = event.key === 'ArrowLeft' ? 1 : -1;
+      setOnlineUsersWidth((width) => (
+        Math.max(180, Math.min(getSidebarWidthLimit(), width + direction * 16))
+      ));
+    } else if (event.key === 'Home') {
+      event.preventDefault();
+      setOnlineUsersWidth(180);
+    } else if (event.key === 'End') {
+      event.preventDefault();
+      setOnlineUsersWidth(getSidebarWidthLimit());
+    }
+  };
+
   const handleSendMessage = (messageText) => {
     if (!messageText.trim()) return { ok: false, error: 'Le message est vide.' };
     return sendChatMessage(socketRef.current, messageText.trim(), initialTopicId, authUserId);
@@ -328,10 +454,20 @@ const Chat = () => {
       return;
     }
     if (pendingDeleteTimeoutsRef.current.has(messageId)) return;
-    if (!window.confirm('Voulez-vous vraiment supprimer ce message ? Cette action est irréversible.')) {
+    setDeleteConfirmationId(messageId);
+  };
+
+  const confirmDeleteMessage = () => {
+    const messageId = deleteConfirmationId;
+    if (messageId === null) return;
+    const socket = socketRef.current;
+    if (!socket?.connected) {
+      setDeleteConfirmationId(null);
+      setDeleteError('Impossible de supprimer le message : vous êtes déconnecté.');
       return;
     }
 
+    setDeleteConfirmationId(null);
     setDeleteError('');
     setPendingDeleteIds((previous) => [...previous, messageId]);
     const timer = window.setTimeout(() => {
@@ -447,7 +583,10 @@ const Chat = () => {
   return (
     <div className="chat-container">
       <div className="chat-header">
-        <h2>Salon #{new URLSearchParams(window.location.search).get('topicId')}</h2>
+        <div className="chat-topic-heading">
+          <h2>{topicInfo?.title || 'Nom du salon non communiqué'}</h2>
+          <p>Salon #{initialTopicId}</p>
+        </div>
         <div className="connection-status">
           <span
             className={`status status-${connectionState}`}
@@ -478,7 +617,7 @@ const Chat = () => {
       )}
       {deleteError && <p className="chat-notice" role="alert">{deleteError}</p>}
 
-      <div className="chat-body">
+      <div className="chat-body" ref={chatBodyRef}>
         <div className="messages-section">
           <MessageList 
             messages={messages} 
@@ -494,8 +633,27 @@ const Chat = () => {
             onLoadOlder={handleLoadOlder}
           />
         </div>
-        
-        <div className="users-section">
+
+        <div
+          className="sidebar-resize-handle"
+          role="separator"
+          aria-label="Redimensionner la liste des utilisateurs en ligne"
+          aria-orientation="vertical"
+          aria-valuemin={180}
+          aria-valuemax={sidebarWidthLimit}
+          aria-valuenow={onlineUsersWidth}
+          tabIndex={0}
+          onPointerDown={handleSidebarResizeStart}
+          onPointerMove={handleSidebarResize}
+          onPointerUp={handleSidebarResizeEnd}
+          onPointerCancel={handleSidebarResizeEnd}
+          onKeyDown={handleSidebarResizeKeyDown}
+        />
+
+        <div
+          className="users-section"
+          style={{ '--users-section-width': `${onlineUsersWidth}px` }}
+        >
           <UserList users={onlineUsers} presenceAvailable={hasPresenceData} />
         </div>
       </div>
@@ -504,6 +662,39 @@ const Chat = () => {
         onSendMessage={handleSendMessage}
         disabled={!isConnected}
       />
+
+      {deleteConfirmationId !== null && (
+        <div className="delete-confirmation-overlay" role="presentation">
+          <div
+            className="delete-confirmation-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-confirmation-title"
+            aria-describedby="delete-confirmation-description"
+          >
+            <h3 id="delete-confirmation-title">Supprimer le message ?</h3>
+            <p id="delete-confirmation-description">
+              Cette action est irréversible.
+            </p>
+            <div className="delete-confirmation-actions">
+              <button
+                type="button"
+                className="delete-confirmation-cancel"
+                onClick={() => setDeleteConfirmationId(null)}
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                className="delete-confirmation-confirm"
+                onClick={confirmDeleteMessage}
+              >
+                Supprimer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

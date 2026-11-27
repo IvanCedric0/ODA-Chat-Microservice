@@ -1,4 +1,5 @@
 .chat-container {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100vh;
@@ -22,6 +23,24 @@
   background: linear-gradient(135deg, #ea9102 0%, #f78e05 100%);
   color: white;
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.chat-topic-heading {
+  min-width: 0;
+}
+
+.chat-topic-heading h2 {
+  margin: 0;
+  overflow: hidden;
+  font-size: 1.1rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-topic-heading p {
+  margin: 0.25rem 0 0;
+  font-size: 0.8rem;
+  opacity: 0.9;
 }
 
 .connection-status {
@@ -104,11 +123,38 @@
 .users-section {
   display: flex;
   flex-direction: column;
-  width: 280px;
+  flex: 0 0 auto;
+  width: var(--users-section-width, 280px);
+  min-width: 0;
   min-height: 0;
   overflow: hidden;
   border-left: 1px solid #e1e5e9;
   background-color: #ffffff;
+}
+
+.sidebar-resize-handle {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 8px;
+  margin-right: -4px;
+  margin-left: -4px;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.sidebar-resize-handle::after {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 3px;
+  width: 2px;
+  background: #cbd5e1;
+  content: '';
+}
+
+.sidebar-resize-handle:hover::after,
+.sidebar-resize-handle:focus-visible::after {
+  background: #f07808;
 }
 
 /* Message styling with modern chat bubbles */
@@ -301,6 +347,67 @@
   opacity: 0.55;
 }
 
+.delete-confirmation-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(15, 23, 42, 0.42);
+}
+
+.delete-confirmation-dialog {
+  width: min(400px, 100%);
+  padding: 1.25rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #ffffff;
+  color: #1f2937;
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.24);
+  text-align: center;
+}
+
+.delete-confirmation-dialog h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1.05rem;
+}
+
+.delete-confirmation-dialog p {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.delete-confirmation-actions {
+  display: flex;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+.delete-confirmation-actions button {
+  min-width: 110px;
+  padding: 0.65rem 1rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+}
+
+.delete-confirmation-cancel {
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+}
+
+.delete-confirmation-confirm {
+  border: 1px solid #dc2626;
+  background: #dc2626;
+  color: #ffffff;
+}
+
 
 .user-list {
   flex: 1;
@@ -403,7 +510,7 @@
 .login-form input:focus,
 .login-form select:focus {
   outline: none;
-  border-color: #667eea;
+  border-color: #f46303;
   background-color: white;
   box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
@@ -411,7 +518,7 @@
 .login-form button {
   width: 100%;
   padding: 0.875rem;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #ea6e0f 0%, #f38211 100%);
   color: white;
   border: none;
   border-radius: 8px;
@@ -427,7 +534,7 @@
 }
 
 .login-form button:disabled {
-  background: #9ca3af;
+  background: #efebe6;
   cursor: not-allowed;
   transform: none;
 }
@@ -468,6 +575,14 @@
     font-size: 1.05rem;
   }
 
+  .chat-topic-heading {
+    overflow: hidden;
+  }
+
+  .chat-topic-heading h2 {
+    font-size: 0.95rem;
+  }
+
   .connection-status {
     gap: 0.4rem;
   }
@@ -489,6 +604,10 @@
     border-top: 1px solid #e1e5e9;
     border-left: 0;
     flex: 0 0 auto;
+  }
+
+  .sidebar-resize-handle {
+    display: none;
   }
 
   .user-list {
