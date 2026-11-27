@@ -1,7 +1,7 @@
 export interface MessageDTO {
     id: number;
     topicId: number;
-    senderId: number;
+    senderId: string;
     content: string;
     isDeleted: boolean;
     createdAt: string;
@@ -9,9 +9,10 @@ export interface MessageDTO {
 
 export interface TopicDTO {
     id: number;
+    tenantId: string;
     serviceName: string;
     title: string;
-    participantIds: number[]
+    participantIds: string[];
 }
 
 export interface ClientToServerEvents {
@@ -28,13 +29,14 @@ export interface ServerToClientEvents {
 }
 
 export interface CreateTopicInput {
+    tenantId: string;
     serviceName: string;
     title: string;
-    participantIds: number[]
+    participantIds: string[];
 }
 export interface CreateMessageInput {
     topicId: number;
-    senderId:number;
+    senderId: string;
     content: string;
 }
 
@@ -42,4 +44,15 @@ export interface FindMessageQuery{
     topicId: number;
     limit?: number;
     beforeId?: bigint | number | undefined;
+}
+
+export interface AuthenticatedUser {
+  userId: string;      // payload.sub (UUID)
+  tenantId: string;    // payload.tid (UUID)
+  tenantSlug?: string; // payload.tenant
+  sessionId?: string;  // payload.sid (UUID, utile pour révocation)
+  roles: string[];
+  perms: string[];
+  membership?: string; // 'ACADEMICIAN' | 'VISITOR'
+  isPlatformAdmin: boolean; // Boolean(payload.pfa)
 }

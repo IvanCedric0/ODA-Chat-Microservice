@@ -12,6 +12,7 @@ export class TopicRepository {
                 data: {
                     serviceName: body.serviceName,
                     title: body.title,
+                    tenantId: body.tenantId,
                     participants: {
                         create: (body.participantIds ?? []).map((userId) => ({
                             userId: userId
@@ -24,15 +25,15 @@ export class TopicRepository {
             })
         }
 
-        async findTopicById(id: number) {
-            return this.db.topic.findUnique({
-                where : {id: id} 
+        async findTopicById(id: number, tenantId?: string) {
+            return this.db.topic.findFirst({
+                where: tenantId ? { id, tenantId } : { id }
             })
         }
 
-        async findTopicByIdWithParticipants(id: number) {
-            return this.db.topic.findUnique({
-                where : {id: id},
+        async findTopicByIdWithParticipants(id: number, tenantId?: string) {
+            return this.db.topic.findFirst({
+                where: tenantId ? { id, tenantId } : { id },
                 include: {
                     participants: true
                 } 
@@ -40,7 +41,7 @@ export class TopicRepository {
         }
 
 
-        async isParticipant(topicId: number, userId: number) {
+        async isParticipant(topicId: number, userId: string) {
             const participant = await this.db.topicParticipant.findUnique({
                 where: {
                     topicId_userId: {topicId, userId}
@@ -49,7 +50,7 @@ export class TopicRepository {
             return participant !==null
         }
 
-        async addParticipants(topicId: number, userIds: number[]){
+        async addParticipants(topicId: number, userIds: string[]){
             return this.db.topicParticipant.createMany({
                 data: (userIds ?? []).map((userId) => ({
                     topicId, userId
@@ -58,7 +59,7 @@ export class TopicRepository {
             })
         }
 
-        async deleteParticipant(topicId: number, userId: number){
+        async deleteParticipant(topicId: number, userId: string){
             return this.db.topicParticipant.deleteMany({
                 where: {
                     topicId,

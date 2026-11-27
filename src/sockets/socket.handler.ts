@@ -130,7 +130,7 @@ export function emitMessageDeleted(
 export async function evictUserFromTopic(
     io: ChatServer,
     topicId: number,
-    userId: number
+    userId: string
 ): Promise<void> {
     const roomName = `topic_${topicId}`;
     const sockets = await io.in(roomName).fetchSockets();
@@ -149,7 +149,7 @@ export async function evictUserFromTopic(
 
 export function registerChathandlers(io: ChatServer) {
     io.on("connection", (socket: AuthenticatedSocket) => {
-        const userId = socket.data.userId;
+        const { userId, tenantId } = socket.data;
 
         socket.on("disconnect", () => {
             clearAllJoinBuffersForSocket(socket.id);
@@ -169,7 +169,7 @@ export function registerChathandlers(io: ChatServer) {
                 }
 
                 // 1. Vérifier l'accès avant de souscrire ou de mettre en tampon
-                await topicService.ensureParticipant(topicId, userId);
+                await topicService.ensureParticipant(topicId, userId, tenantId);
 
                 const targetRoom = `topic_${topicId}`;
                 if (joiningBuffers.get(targetRoom)?.has(socket.id)) {
@@ -183,7 +183,7 @@ export function registerChathandlers(io: ChatServer) {
                 await socket.join(roomName);
 
                 // 3. Charger l'historique pendant que les événements temps réel sont mis en tampon
-                const history = await messageService.getTopicMessages(topicId, userId, 50);
+                const history = await messageService.getTopicMessages(topicId, userId, 50, undefined, tenantId);
 
                 // 4. Re-vérifier l'accès après les opérations asynchrones (retrait en cours)
                 const stillMember = await topicService.isParticipant(topicId, userId);
@@ -228,7 +228,7 @@ export function registerChathandlers(io: ChatServer) {
                     return;
                 }
 
-                const messageDto = await messageService.postMessage(topicId, userId, content);
+                const messageDto = await messageService.postMessage(topicId, userId, content, tenantId);
                 const roomName = `topic_${messageDto.topicId}`;
 
                 emitToTopic(io, roomName, { type: "new_message", payload: messageDto });
@@ -252,7 +252,7 @@ export function registerChathandlers(io: ChatServer) {
                     return;
                 }
 
-                const deletedMessageDto = await messageService.deleteMessage(messageId, userId);
+                const deletedMessageDto = await messageService.deleteMessage(messageId, userId, tenantId);
 
                 if (!messageService.onMessageDeleted) {
                     emitMessageDeleted(io, deletedMessageDto.topicId, deletedMessageDto.id);

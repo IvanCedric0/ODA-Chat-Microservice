@@ -1,9 +1,14 @@
-import { fastify, type FastifyPluginAsync, type RouteShorthandOptions } from "fastify"
+import { type FastifyPluginAsync, type RouteShorthandOptions } from "fastify"
 import { prisma } from "../config/prisma.js";
 
-export const healthRoutes: FastifyPluginAsync = async (fastify, _options) => {
+export interface HealthRoutesOptions {
+    hideFromDocs?: boolean;
+}
+
+export const healthRoutes: FastifyPluginAsync<HealthRoutesOptions> = async (fastify, options) => {
     const healtOpts: RouteShorthandOptions = {
         schema: {
+            hide: Boolean(options.hideFromDocs),
             description: 'Get server status',
             response: {
                 200: {

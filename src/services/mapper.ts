@@ -6,6 +6,7 @@ type TopicWithParticipants = Topic & {participants: TopicParticipant[]}
 export function toTopicDTO(topic: TopicWithParticipants): TopicDTO {
     return {
         id: topic.id,
+        tenantId: topic.tenantId,
         serviceName: topic.serviceName,
         title: topic.title,
         participantIds: topic.participants.map((p) => p.userId) ?? []
