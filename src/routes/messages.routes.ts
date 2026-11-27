@@ -7,6 +7,18 @@ export const messageRoutes: FastifyPluginAsync = async (fastify, _options) => {
     
     fastify.addHook('preHandler', requireUserAuth)
 
+    const messageSchema = {
+        type: 'object',
+        properties: {
+            id: {type: 'integer'},
+            topicId: {type: 'integer'},
+            senderId: {type: 'string', format: 'uuid'},
+            content: {type: 'string'},
+            isDeleted: {type: 'boolean'},
+            createdAt: {type: 'string'}
+        }
+    }
+
     const GetMessagesOpts: RouteShorthandOptions = {
         schema: {
             description: "Retourne l'historique paginé des messages d'un salon",
@@ -31,17 +43,7 @@ export const messageRoutes: FastifyPluginAsync = async (fastify, _options) => {
             response: {
                 200: {
                     type: 'array',
-                    items: {
-                        type: 'object',
-                        properties: {
-                            id: {type: 'integer'},
-                            topicId: {type: 'integer'},
-                            senderId: {type: 'integer'},
-                            content: {type: 'string'},
-                            isDeleted: {type: 'boolean'},
-                            createdAt: {type: 'string'}
-                        }
-                    }
+                    items: messageSchema
                 }
             }
         }
@@ -50,10 +52,11 @@ export const messageRoutes: FastifyPluginAsync = async (fastify, _options) => {
     fastify.get<{Params: {topicId: string}; Querystring: {limit?: number, beforeId?: number}; Reply: MessageDTO[] | {error: string}}>('/topics/:topicId/messages', GetMessagesOpts, async (req, res) => {
         const topicId = Number(req.params.topicId)
         const userId = req.userId! // Extracted securely from the JWT
+        const tenantId = req.authUser?.tenantId
         const {limit = 50, beforeId} = req.query
 
         try{
-            const messages = await messageService.getTopicMessages(topicId, userId, limit, beforeId)
+            const messages = await messageService.getTopicMessages(topicId, userId, limit, beforeId, tenantId)
             return res.code(200).send(messages)
         } catch (err:any) {
             fastify.log.error(err, "Error getting messages")
@@ -87,17 +90,7 @@ export const messageRoutes: FastifyPluginAsync = async (fastify, _options) => {
                 }
             },
             response: {
-                200: {
-                    type: 'object',
-                    properties: {
-                        id: {type: 'integer'},
-                        topicId: {type: 'integer'},
-                        senderId: {type: 'integer'},
-                        content: {type: 'string'},
-                        isDeleted: {type: 'boolean'},
-                        createdAt: {type: 'string'}
-                    }
-                }
+                200: messageSchema
             }
         }
     }
@@ -105,10 +98,11 @@ export const messageRoutes: FastifyPluginAsync = async (fastify, _options) => {
     fastify.delete<{Params: {messageId: string}; Reply: MessageDTO | {error: string}}>('/messages/:messageId', DeleteMessagesOpts, async (req, res) => {
         const messageId = Number(req.params.messageId)
         const userId = req.userId!
+        const tenantId = req.authUser?.tenantId
 
         try {
             
-            const deletedDto = await messageService.deleteMessage(messageId, userId)
+            const deletedDto = await messageService.deleteMessage(messageId, userId, tenantId)
             return res.code(200).send(deletedDto)
 
         } catch (err: any) {
