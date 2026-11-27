@@ -9,19 +9,20 @@ generator client {
 
 model Topic {
   id           Int                @id @default(autoincrement())
+  tenantId     String             @map("tenant_id") @db.Uuid
   serviceName  String             @map("service_name") @db.VarChar(64)
   title        String             @db.VarChar(255)
   createdAt    DateTime           @default(now()) @map("created_at")
   participants TopicParticipant[]
   messages     Message[]
 
-  @@index([serviceName])
+  @@index([tenantId, serviceName])
   @@map("topics")
 }
 
 model TopicParticipant {
   topicId  Int      @map("topic_id")
-  userId   Int      @map("user_id")
+  userId   String   @map("user_id") @db.Uuid
   joinedAt DateTime @default(now()) @map("joined_at")
   topic    Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
 
@@ -33,7 +34,7 @@ model TopicParticipant {
 model Message {
   id        BigInt   @id @default(autoincrement())
   topicId   Int      @map("topic_id")
-  senderId  Int      @map("sender_id")
+  senderId  String   @map("sender_id") @db.Uuid
   content   String   @db.Text
   isDeleted Boolean  @default(false) @map("is_deleted")
   createdAt DateTime @default(now()) @map("created_at")
